@@ -31,7 +31,7 @@ public class ApiController {
 
     @Autowired
     private CallbackService callbackService;
-    
+
     @Autowired
     private TaskService taskService;
 
@@ -69,22 +69,22 @@ public class ApiController {
     }
 
     @PostMapping("/callback")
-    @Operation(summary = "工作流回调接口", description = "接收工作流处理结果的回调，taskId从请求参数获取，data从请求体raw_text获取")
+    @Operation(summary = "工作流回调接口", description = "接收工作流处理结果的回调，taskId从请求参数获取，data从请求体data获取")
     public ResponseEntity<Map<String, Object>> callback(
-            @RequestBody String raw_text,
+            @RequestBody String data,
             @RequestParam String taskId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
             // 检查参数是否存在
-            if (taskId == null || raw_text == null || raw_text.isEmpty()) {
+            if (taskId == null || data == null || data.isEmpty()) {
                 result.put("status", "error");
-                result.put("message", "缺少必要参数: taskId是必填项，请求体raw_text不能为空");
+                result.put("message", "缺少必要参数: taskId是必填项，请求体data不能为空");
                 return ResponseEntity.badRequest().body(result);
             }
 
             // 处理回调数据
-            callbackService.processCallback(taskId, raw_text);
+            callbackService.processCallback(taskId, data);
 
             result.put("status", "success");
             result.put("message", "回调数据已成功处理");
@@ -130,12 +130,12 @@ public class ApiController {
         result.put("version", "1.0.0");
         return ResponseEntity.ok(result);
     }
-    
+
     @GetMapping("/tasks")
     @Operation(summary = "获取任务列表", description = "获取当前用户的任务列表")
     public ResponseEntity<Map<String, Object>> getTasks() {
         Map<String, Object> result = new HashMap<>();
-        
+
         try {
             // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
@@ -144,10 +144,10 @@ public class ApiController {
                 result.put("error", "未获取到用户信息");
                 return ResponseEntity.status(401).body(result);
             }
-            
+
             // 获取当前用户的任务列表
             java.util.List<Task> tasks = taskService.getTasksByUserId(userId);
-            
+
             result.put("success", true);
             result.put("tasks", tasks);
             return ResponseEntity.ok(result);
@@ -157,12 +157,12 @@ public class ApiController {
             return ResponseEntity.status(500).body(result);
         }
     }
-    
+
     @GetMapping("/task/{taskId}/results")
     @Operation(summary = "获取任务结果", description = "根据任务ID获取当前用户的任务结果")
     public ResponseEntity<Map<String, Object>> getTaskResults(@PathVariable String taskId) {
         Map<String, Object> result = new HashMap<>();
-        
+
         try {
             // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
@@ -171,10 +171,10 @@ public class ApiController {
                 result.put("error", "未获取到用户信息");
                 return ResponseEntity.status(401).body(result);
             }
-            
+
             // 获取当前用户的任务结果
             java.util.List<CallbackData> results = callbackService.getTaskResultsByTaskIdAndUserId(taskId, userId);
-            
+
             result.put("success", true);
             result.put("results", results);
             return ResponseEntity.ok(result);
@@ -184,12 +184,12 @@ public class ApiController {
             return ResponseEntity.status(500).body(result);
         }
     }
-    
+
     @GetMapping("/task/original/{originalTaskId}/results")
     @Operation(summary = "获取原始任务结果", description = "根据原始任务ID获取当前用户所有批次的任务结果")
     public ResponseEntity<Map<String, Object>> getOriginalTaskResults(@PathVariable String originalTaskId) {
         Map<String, Object> result = new HashMap<>();
-        
+
         try {
             // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
@@ -198,10 +198,10 @@ public class ApiController {
                 result.put("error", "未获取到用户信息");
                 return ResponseEntity.status(401).body(result);
             }
-            
+
             // 获取当前用户的原始任务结果
             java.util.List<CallbackData> results = callbackService.getTaskResultsByOriginalTaskIdAndUserId(originalTaskId, userId);
-            
+
             result.put("success", true);
             result.put("results", results);
             return ResponseEntity.ok(result);
@@ -212,3 +212,4 @@ public class ApiController {
         }
     }
 }
+
