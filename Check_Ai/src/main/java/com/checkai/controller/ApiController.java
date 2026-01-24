@@ -69,33 +69,22 @@ public class ApiController {
     }
 
     @PostMapping("/callback")
-    @Operation(summary = "工作流回调接口", description = "接收工作流处理结果的回调，支持通过请求体或请求参数传递数据")
+    @Operation(summary = "工作流回调接口", description = "接收工作流处理结果的回调，taskId从请求参数获取，data从请求体raw_text获取")
     public ResponseEntity<Map<String, Object>> callback(
-            @RequestBody(required = false) Map<String, Object> requestBody,
-            @RequestParam(required = false) String taskId,
-            @RequestParam(required = false) String data) {
+            @RequestBody String raw_text,
+            @RequestParam String taskId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 优先从请求体获取参数
-            String finalTaskId = taskId;
-            String finalData = data;
-            
-            // 如果请求体存在，优先使用请求体中的参数
-            if (requestBody != null) {
-                finalTaskId = (String) requestBody.getOrDefault("taskId", finalTaskId);
-                finalData = (String) requestBody.getOrDefault("data", finalData);
-            }
-
             // 检查参数是否存在
-            if (finalTaskId == null || finalData == null) {
+            if (taskId == null || raw_text == null || raw_text.isEmpty()) {
                 result.put("status", "error");
-                result.put("message", "缺少必要参数: taskId和data是必填项");
+                result.put("message", "缺少必要参数: taskId是必填项，请求体raw_text不能为空");
                 return ResponseEntity.badRequest().body(result);
             }
 
             // 处理回调数据
-            callbackService.processCallback(finalTaskId, finalData);
+            callbackService.processCallback(taskId, raw_text);
 
             result.put("status", "success");
             result.put("message", "回调数据已成功处理");
@@ -108,7 +97,7 @@ public class ApiController {
     }
 
     @GetMapping("/callback")
-    @Operation(summary = "工作流回调接口(GET方式)", description = "通过GET方式接收工作流处理结果的回调")
+    @Operation(summary = "工作流回调接口(GET方式)", description = "已废弃：通过GET方式接收工作流处理结果的回调，仅支持短文本数据")
     public ResponseEntity<Map<String, Object>> callbackGet(@RequestParam String taskId, @RequestParam String data) {
         Map<String, Object> result = new HashMap<>();
 
