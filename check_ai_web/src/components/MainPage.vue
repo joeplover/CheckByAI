@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import { API_PATHS, buildApiUrl } from '../config/api';
 
 // 初始化路由
 const router = useRouter();
@@ -49,7 +50,7 @@ const handleUpload = async () => {
     const token = localStorage.getItem('token');
     
     // 调用后端API上传文件
-    const response = await axios.post('http://checkbyai.free.idcfengye.com/api/upload-excel', formData, {
+    const response = await axios.post(buildApiUrl(API_PATHS.UPLOAD_EXCEL), formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Authorization': token ? `Bearer ${token}` : '',
@@ -95,7 +96,7 @@ const fetchTasks = async () => {
     // 调用后端API获取任务列表
     console.log('获取任务列表');
     const token = localStorage.getItem('token');
-    const response = await axios.get('http://checkbyai.free.idcfengye.com/api/tasks', {
+    const response = await axios.get(buildApiUrl(API_PATHS.GET_TASKS), {
       headers: {
         'Authorization': token ? `Bearer ${token}` : ''
       }
@@ -137,7 +138,7 @@ const fetchTaskResults = async (taskId) => {
     // 调用后端API获取任务结果
     console.log('获取任务结果:', taskId);
     const token = localStorage.getItem('token');
-    const response = await axios.get(`http://checkbyai.free.idcfengye.com/api/task/${taskId}/results`, {
+    const response = await axios.get(buildApiUrl(API_PATHS.GET_TASK_RESULTS, { taskId }), {
       headers: {
         'Authorization': token ? `Bearer ${token}` : ''
       }
