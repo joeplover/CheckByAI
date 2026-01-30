@@ -63,7 +63,7 @@ public class MysqlMonitorService {
             }
             statusMetrics.put("command_statistics", comMetrics);
 
-            //存储到Redis(热点数据)
+            //存储到Redis(全局连接状态信息)
             String cacheKey = CACHE_KEY_PREFIX + "status:" + System.currentTimeMillis();
             redisTemplate.opsForValue().set(cacheKey, statusMetrics,1, TimeUnit.HOURS);
 
@@ -103,6 +103,7 @@ public class MysqlMonitorService {
                 LIMIT 20
                 """;
             List<Map<String, Object>> hotspotSQLs = jdbcTemplate.queryForList(sql);
+            log.info("hotspotSQLs:"+hotspotSQLs);
 
             //存储到Redis有序集合(按执行次数排序)
             for (Map<String, Object> sqlStat : hotspotSQLs) {

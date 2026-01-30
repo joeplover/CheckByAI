@@ -1,9 +1,11 @@
 package com.checkai;
 
+import com.checkai.entity.User;
 import com.checkai.util.RedisUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.Arrays;
 import java.util.List;
@@ -18,6 +20,9 @@ public class Test {
     
     @Autowired
     private RedisUtil redisUtil;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     
     @org.junit.jupiter.api.Test
     public void testGetRedisValues() {
@@ -67,5 +72,15 @@ public class Test {
         } else {
             System.out.println("未找到热点SQL数据");
         }
+    }
+
+    @org.junit.jupiter.api.Test
+    public void jdbcTest(){
+        System.out.println("JDBC测试方法");
+        List<Map<String, Object>> users = jdbcTemplate.queryForList("SELECT * FROM user;");
+        for (Map<String, Object> user : users) {
+            System.out.println(user.toString());
+        }
+//        System.out.println(users.toString());
     }
 }
