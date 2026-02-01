@@ -2,17 +2,20 @@ package com.checkai.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.checkai.entity.LogisticsOrder;
 import com.checkai.entity.PageBean;
 import com.checkai.mapper.LogisticsMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.checkai.util.RedisUtil;
-import lombok.extern.java.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.sql.Time;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -40,6 +43,12 @@ public class LoginsticsService extends ServiceImpl<LogisticsMapper, LogisticsOrd
     private RedisUtil redisUtil;
     @Autowired
     private static final String USER_CACHE_PREFIX = "LOGISTICS:";
+
+    private void keyClear() {
+        for (String s : redisUtil.getS(USER_CACHE_PREFIX + "*")) {
+            redisUtil.delete(s);
+        }
+    }
 
     /**
      * 分页查询物流订单列表
@@ -89,6 +98,49 @@ public class LoginsticsService extends ServiceImpl<LogisticsMapper, LogisticsOrd
         redisUtil.set(key, logisticsOrders,30, TimeUnit.MINUTES);
         System.out.println("数据已缓存到Redis,30分钟内有效");
         return logisticsOrders;
+    }
+
+    public void logisticsAdd(LogisticsOrder logisticsOrder) {
+        logisticsMapper.insert(logisticsOrder);
+        keyClear();
+    }
+
+    public void logisticsUpdate(LogisticsOrder logisticsOrder) {
+
+        keyClear();
+
+        UpdateWrapper<LogisticsOrder> wrapper = new UpdateWrapper<LogisticsOrder>()
+                .eq("id", logisticsOrder.getId());
+        logisticsMapper.update(logisticsOrder,wrapper);
+
+        //异步删除 为数据库update预留充足的时间
+        CompletableFuture.runAsync(()->{
+            try {
+                Thread.sleep(2000);
+                keyClear();
+            }catch (InterruptedException e){
+                Thread.currentThread().interrupt();
+            }
+        }, Executors.newSingleThreadExecutor());
+
+    }
+
+    public void logisticsDelete(Long id) {
+        logisticsMapper.deleteById(id);
+        keyClear();
+    }
+
+    public LogisticsOrder logisticsSelectById(Long id) {
+        String key = USER_CACHE_PREFIX + "SelectById:" + id;
+        Object value = redisUtil.get(key);
+        if (!redisUtil.hasKey(key)) {
+            LogisticsOrder logisticsOrder = logisticsMapper.selectById(id);
+            redisUtil.set(key, logisticsOrder,30, TimeUnit.MINUTES);
+            return logisticsOrder;
+        }else {
+            return (LogisticsOrder) value;
+        }
+
     }
 }
 

@@ -4,9 +4,7 @@ import com.checkai.entity.LogisticsOrder;
 import com.checkai.entity.PageBean;
 import com.checkai.entity.Result;
 import com.checkai.service.LoginsticsService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -27,7 +25,32 @@ public class LogisticsController {
     }
 
     @GetMapping("/list")
-    public List<LogisticsOrder> logisticsList(){
-        return loginsticsService.logisticsSelect();
+    public Result<List<LogisticsOrder>> logisticsList(){
+        List<LogisticsOrder> logisticsOrders = loginsticsService.logisticsSelect();
+        return Result.success(logisticsOrders);
+    }
+    @GetMapping("/list/{id}")
+    public Result<LogisticsOrder> logisticsSelectById(@PathVariable Long id){
+        LogisticsOrder order = loginsticsService.logisticsSelectById(id);
+        return Result.success(order);
+    }
+
+
+    @PostMapping("/add")
+    public Result logisticsAdd(@RequestBody LogisticsOrder logisticsOrder){
+        loginsticsService.logisticsAdd(logisticsOrder);
+        return Result.success();
+    }
+
+    @PutMapping
+    public Result logisticsUpdate(@RequestBody LogisticsOrder logisticsOrder){
+        loginsticsService.logisticsUpdate(logisticsOrder);
+        return Result.success();
+    }
+    @DeleteMapping("/delete/{id}")
+    public Result logisticsDelete(@PathVariable Long id){
+        loginsticsService.logisticsDelete(id);
+        return Result.success();
+
     }
 }

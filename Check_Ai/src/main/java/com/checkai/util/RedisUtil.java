@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -22,6 +24,10 @@ public class RedisUtil {
     //取数据
     public Object get(String key) {
         return redisTemplate.opsForValue().get(key);
+    }
+    public Set<String> getS(String key) {
+        Set<String> keys = redisTemplate.keys(key);
+        return keys;
     }
     //删除数据
     public void delete(String key) {

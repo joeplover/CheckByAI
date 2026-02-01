@@ -45,116 +45,176 @@ public class WorkflowService {
     private static final int BATCH_SIZE = 5;
 
     public String processExcelData(ExcelData excelData, String userId) throws Exception {
-        String originalTaskId = ShortIdUtil.generateShortId(); // 生成8位短ID
+        String taskId = ShortIdUtil.generateShortId(); // 生成8位短ID
         List<ExcelData> splitDataList = new ArrayList<>();
 
         // 检查数据是否需要拆分
-        if (excelData.getExcelBase().size() > BATCH_SIZE) {
-            splitDataList = new ExcelService().splitExcelData(excelData, BATCH_SIZE);
+        int totalRows = excelData.getExcelBase().size();
+        int batchSize = 5;
+        int totalBatches = 0;
+        
+        if (totalRows > 5) {
+            if (totalRows <= 10) {
+                totalBatches = 2;
+                batchSize = 5;
+            } else if (totalRows <= 15) {
+                totalBatches = 3;
+                batchSize = 5;
+            } else if (totalRows <= 20) {
+                totalBatches = 4;
+                batchSize = 5;
+            }
+            
+            // 拆分数据
+            splitDataList = splitExcelData(excelData, batchSize, totalBatches);
         } else {
             splitDataList.add(excelData);
+            totalBatches = 1;
         }
 
-        int totalBatches = splitDataList.size();
+        // 设置超时时间（当前时间+8分钟）
+        Date currentTime = new Date();
+        Date timeoutTime = new Date(currentTime.getTime() + 8 * 60 * 1000);
+        
+        // 只保存一条任务到数据库
+        Task task = new Task();
+        task.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
+        task.setTaskId(taskId);
+        task.setOriginalTaskId(taskId);
+        task.setUserId(userId);
+        task.setBatchNumber(0);
+        task.setTotalBatches(totalBatches);
+        task.setStatus("PENDING");
+        task.setDataContent(objectMapper.writeValueAsString(excelData));
+        task.setCreateTime(currentTime);
+        task.setUpdateTime(currentTime);
+        task.setTimeoutTime(timeoutTime);
+        task.setProgress(0);
+        task.setTotalProgress(totalBatches);
+        taskMapper.insert(task);
 
         // 分批处理数据
         for (int i = 0; i < splitDataList.size(); i++) {
             ExcelData splitData = splitDataList.get(i);
-            String taskId = originalTaskId + "_batch_" + (i + 1);
-
-            // 设置超时时间（当前时间+8分钟）
-            Date currentTime = new Date();
-            Date timeoutTime = new Date(currentTime.getTime() + 8 * 60 * 1000);
-            
-            // 保存任务到数据库
-            Task task = new Task();
-            task.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
-            task.setTaskId(taskId);
-            task.setOriginalTaskId(originalTaskId);
-            task.setUserId(userId);
-            task.setBatchNumber(i + 1);
-            task.setTotalBatches(totalBatches);
-            task.setStatus("PENDING");
-            task.setDataContent(objectMapper.writeValueAsString(splitData));
-            task.setCreateTime(currentTime);
-            task.setUpdateTime(currentTime);
-            task.setTimeoutTime(timeoutTime);
-            // 设置进度信息
-            task.setProgress(i + 1);
-            task.setTotalProgress(totalBatches);
-            taskMapper.insert(task);
+            String batchTaskId = taskId + "_batch_" + (i + 1);
 
             // 发送请求到工作流
-            sendWorkflowRequest(splitData, taskId);
+            sendWorkflowRequest(splitData, batchTaskId, taskId);
         }
 
-        return originalTaskId;
+        return taskId;
     }
 
-    private void sendWorkflowRequest(ExcelData excelData, String taskId) throws Exception {
-        // 构建请求数据
-        WorkflowRequest workflowRequest = new WorkflowRequest();
-        workflowRequest.setBot_id(botId);
-        workflowRequest.setUser_id(taskId);
-        workflowRequest.setStream(false);
-        workflowRequest.setAuto_save_history(true);
+    private List<ExcelData> splitExcelData(ExcelData excelData, int batchSize, int totalBatches) {
+        List<ExcelData> splitDataList = new ArrayList<>();
+        List<Map<String, String>> excelBase = excelData.getExcelBase();
+        List<List<String>> excelPull = excelData.getExcelPull();
+        List<List<String>> excelPush = excelData.getExcelPush();
+        
+        for (int i = 0; i < totalBatches; i++) {
+            int startIndex = i * batchSize;
+            int endIndex = Math.min((i + 1) * batchSize, excelBase.size());
+            
+            if (startIndex >= excelBase.size()) {
+                break;
+            }
+            
+            ExcelData splitData = new ExcelData();
+            splitData.setExcelBase(excelBase.subList(startIndex, endIndex));
+            
+            // 处理pull和push数据（如果有）
+            if (excelPull != null && !excelPull.isEmpty()) {
+                splitData.setExcelPull(excelPull.subList(startIndex, Math.min(endIndex, excelPull.size())));
+            }
+            
+            if (excelPush != null && !excelPush.isEmpty()) {
+                splitData.setExcelPush(excelPush.subList(startIndex, Math.min(endIndex, excelPush.size())));
+            }
+            
+            splitDataList.add(splitData);
+        }
+        
+        return splitDataList;
+    }
 
+    private void sendWorkflowRequest(ExcelData excelData, String batchTaskId, String mainTaskId) throws Exception {
+        // 构建请求数据
+        Map<String, Object> requestData = new HashMap<>();
+        
         // 构建additional_messages
-        List<WorkflowRequest.AdditionalMessage> additionalMessages = new ArrayList<>();
-        WorkflowRequest.AdditionalMessage message = new WorkflowRequest.AdditionalMessage();
-        message.setRole("user");
+        List<Map<String, Object>> additionalMessages = new ArrayList<>();
+        Map<String, Object> message = new HashMap<>();
+        message.put("role", "joe");
+        message.put("content_type", "text");
         
-        // 转换ExcelData为符合Coze API要求的格式
-        Map<String, Object> cozeData = new HashMap<>();
-        
-        // 添加taskId字段
-        List<Map<String, String>> taskIdList = new ArrayList<>();
+        // 构建taskId数据
+        List<String> taskIdList = new ArrayList<>();
         Map<String, String> taskIdMap = new HashMap<>();
-        taskIdMap.put("taskId", taskId);
-        taskIdList.add(taskIdMap);
-        cozeData.put("taskId", taskIdList);
+        taskIdMap.put("taskId", batchTaskId);
+        taskIdMap.put("mainTaskId", mainTaskId);
+        taskIdList.add(objectMapper.writeValueAsString(taskIdMap));
         
-        // 转换字段名为下划线格式
-        cozeData.put("excel_base", excelData.getExcelBase());
-        cozeData.put("excel_pull", excelData.getExcelPull());
-        cozeData.put("excel_push", excelData.getExcelPush());
+        // 构建excel_base数据
+        List<String> excelBaseList = new ArrayList<>();
+        for (Map<String, String> item : excelData.getExcelBase()) {
+            excelBaseList.add(objectMapper.writeValueAsString(item));
+        }
         
-        // 创建请求内容
+        // 构建excel_pull数据
+        List<String> excelPullList = new ArrayList<>();
+        if (excelData.getExcelPull() != null && !excelData.getExcelPull().isEmpty()) {
+            for (List<String> item : excelData.getExcelPull()) {
+                excelPullList.add(objectMapper.writeValueAsString(item));
+            }
+        }
+        
+        // 构建excel_push数据
+        List<String> excelPushList = new ArrayList<>();
+        if (excelData.getExcelPush() != null && !excelData.getExcelPush().isEmpty()) {
+            for (List<String> item : excelData.getExcelPush()) {
+                excelPushList.add(objectMapper.writeValueAsString(item));
+            }
+        }
+        
+        // 构建data数据
+        Map<String, Object> data = new HashMap<>();
+        data.put("taskId", taskIdList);
+        data.put("excel_base", excelBaseList);
+        data.put("excel_pull", excelPullList);
+        data.put("excel_push", excelPushList);
+        
+        // 构建content数据
         Map<String, Object> contentMap = new HashMap<>();
-        contentMap.put("data", cozeData);
+        contentMap.put("data", data);
         String content = objectMapper.writeValueAsString(contentMap);
         
-        message.setContent(content);
-        message.setContent_type("text");
-        
+        message.put("content", content);
         additionalMessages.add(message);
-        workflowRequest.setAdditional_messages(additionalMessages);
+        
+        // 设置请求参数
+        requestData.put("additional_messages", additionalMessages);
+        requestData.put("workflow_id", "7595443144305852425");
+        requestData.put("parameters", new HashMap<>());
 
         // 设置请求头
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", authorization);
 
-        HttpEntity<WorkflowRequest> requestEntity = new HttpEntity<>(workflowRequest, headers);
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestData, headers);
 
         // 发送请求
-        ResponseEntity<String> response = restTemplate.postForEntity(workflowApiUrl, requestEntity, String.class);
+        ResponseEntity<String> response = restTemplate.postForEntity("https://api.coze.cn/v1/workflows/chat", requestEntity, String.class);
         
         // 处理响应
         if (response.getStatusCode().is2xxSuccessful()) {
-            // 更新任务状态为已发送
-            Task task = new Task();
-            task.setTaskId(taskId);
-            task.setStatus("SENT");
-            task.setUpdateTime(new Date());
-            taskMapper.updateById(task);
+            // 响应成功，不需要更新任务状态（等待回调）
         } else {
-            // 更新任务状态为失败
-            Task task = new Task();
-            task.setTaskId(taskId);
-            task.setStatus("FAILED");
-            task.setUpdateTime(new Date());
-            taskMapper.updateById(task);
+            // 响应失败，更新任务状态为失败
+            Task updateTask = new Task();
+            updateTask.setStatus("FAILED");
+            updateTask.setUpdateTime(new Date());
+            taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", mainTaskId));
             throw new Exception("Workflow request failed: " + response.getStatusCode());
         }
     }
