@@ -54,12 +54,87 @@ public class CallbackService {
             // taskId有效，继续处理
             System.out.println("taskId有效，处理回调数据 - originalTaskId: " + originalTaskId);
 
+            // 检查是否是失败回调
+            boolean isFailure = false;
+            try {
+                // 尝试解析数据，检查是否包含失败信息
+                if (data != null && (data.contains("error") || data.contains("failed") || data.contains("FAILURE"))) {
+                    isFailure = true;
+                    System.out.println("检测到失败回调 - originalTaskId: " + originalTaskId + ", batchNumber: " + batchNumber);
+                }
+            } catch (Exception e) {
+                // 解析失败，继续处理
+            }
+
             // 获取userId
             String userId = task.getUserId();
 
+            // 如果是失败回调，直接更新任务状态为失败
+            if (isFailure) {
+                Task updateTask = new Task();
+                updateTask.setStatus("FAILED");
+                updateTask.setUpdateTime(new Date());
+                updateTask.setProgress(task.getTotalProgress());
+                taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", originalTaskId));
+                
+                // 记录失败回调数据
+                CallbackData callbackData = new CallbackData();
+                callbackData.setId(ShortIdUtil.generateShortId());
+                callbackData.setTaskId(originalTaskId);
+                callbackData.setOriginalTaskId(originalTaskId);
+                callbackData.setUserId(userId);
+                String failureData = "[FAILURE]\n" + data;
+                callbackData.setData(Base64.getEncoder().encodeToString(failureData.getBytes(StandardCharsets.UTF_8)));
+                callbackData.setReceiveTime(new Date());
+                callbackDataMapper.insert(callbackData);
+                
+                System.out.println("批次处理失败 - originalTaskId: " + originalTaskId + ", batchNumber: " + batchNumber);
+                return;
+            }
+
             // 检查是否是首批回调（批次1）
-            if (batchNumber != null && batchNumber == 1) {
-                // 首批回调，直接插入数据库
+        if (batchNumber != null && batchNumber == 1) {
+            // 检查是否有临时回调数据（后续批次的回调数据）
+            List<CallbackData> tempCallbacks = callbackDataMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CallbackData>()
+                            .eq("task_id", originalTaskId)
+            );
+            
+            if (!tempCallbacks.isEmpty()) {
+                // 有临时回调数据，需要合并
+                StringBuilder mergedData = new StringBuilder(data);
+                
+                // 遍历临时回调数据，提取并合并数据
+                for (CallbackData tempCallback : tempCallbacks) {
+                    try {
+                        String tempData = tempCallback.getData();
+                        if (tempData != null) {
+                            String decodedTempData = new String(Base64.getDecoder().decode(tempData), StandardCharsets.UTF_8);
+                            mergedData.append("\n").append(decodedTempData);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("解码临时回调数据失败: " + e.getMessage());
+                    }
+                }
+                
+                // 创建合并后的回调数据
+                CallbackData callbackData = new CallbackData();
+                callbackData.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
+                callbackData.setTaskId(originalTaskId); // 使用原始taskId作为callbackData的taskId
+                callbackData.setOriginalTaskId(originalTaskId);
+                callbackData.setUserId(userId);
+                callbackData.setData(Base64.getEncoder().encodeToString(mergedData.toString().getBytes(StandardCharsets.UTF_8)));
+                callbackData.setReceiveTime(new Date());
+                callbackDataMapper.insert(callbackData);
+                
+                // 删除临时回调数据
+                for (CallbackData tempCallback : tempCallbacks) {
+                    callbackDataMapper.deleteById(tempCallback.getId());
+                }
+                
+                System.out.println("首批回调数据已插入并合并临时数据 - originalTaskId: " + originalTaskId);
+            } else {
+                // 没有临时回调数据，直接插入首批回调数据
                 CallbackData callbackData = new CallbackData();
                 callbackData.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
                 callbackData.setTaskId(originalTaskId); // 使用原始taskId作为callbackData的taskId
@@ -69,60 +144,113 @@ public class CallbackService {
                 callbackData.setReceiveTime(new Date());
                 callbackDataMapper.insert(callbackData);
                 System.out.println("首批回调数据已插入 - originalTaskId: " + originalTaskId);
-            } else if (batchNumber != null && batchNumber > 1) {
-                // 后续批次回调，追加到首批数据后
-                // 查询首批回调数据
-                CallbackData firstCallback = callbackDataMapper.selectOne(
+            }
+        } else if (batchNumber != null && batchNumber > 1) {
+            // 后续批次回调，追加到首批数据后
+            // 尝试查找首批回调数据，最多重试3次
+            int retryCount = 0;
+            int maxRetries = 3;
+            CallbackData firstCallback = null;
+            
+            while (firstCallback == null && retryCount < maxRetries) {
+                firstCallback = callbackDataMapper.selectOne(
                         new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CallbackData>()
                                 .eq("task_id", originalTaskId)
                                 .orderByAsc("receive_time")
                                 .last("LIMIT 1")
                 );
                 
-                if (firstCallback != null) {
-                    // 追加数据到首批回调数据后
-                    String existingData = firstCallback.getData();
-                    // 解码现有数据，追加新数据后重新编码
-                    String decodedExistingData = new String(Base64.getDecoder().decode(existingData), StandardCharsets.UTF_8);
-                    String newDecodedData = decodedExistingData + "\n" + data;
-                    String newEncodedData = Base64.getEncoder().encodeToString(newDecodedData.getBytes(StandardCharsets.UTF_8));
-                    
-                    // 更新首批回调数据
-                    firstCallback.setData(newEncodedData);
-                    firstCallback.setReceiveTime(new Date());
-                    callbackDataMapper.updateById(firstCallback);
-                    System.out.println("后续批次回调数据已追加 - originalTaskId: " + originalTaskId + ", batchNumber: " + batchNumber);
-                } else {
-                    // 如果没有找到首批回调数据，直接插入
-                    CallbackData callbackData = new CallbackData();
-                    callbackData.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
-                    callbackData.setTaskId(originalTaskId);
-                    callbackData.setOriginalTaskId(originalTaskId);
-                    callbackData.setUserId(userId);
-                    callbackData.setData(Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8)));
-                    callbackData.setReceiveTime(new Date());
-                    callbackDataMapper.insert(callbackData);
-                    System.out.println("未找到首批回调数据，直接插入 - originalTaskId: " + originalTaskId);
+                if (firstCallback == null) {
+                    retryCount++;
+                    System.out.println("未找到首批回调数据，等待重试 - originalTaskId: " + originalTaskId + ", 重试次数: " + retryCount);
+                    try {
+                        Thread.sleep(1000); // 等待1秒后重试
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
+            }
+            
+            if (firstCallback != null) {
+                // 追加数据到首批回调数据后
+                String existingData = firstCallback.getData();
+                // 解码现有数据，追加新数据后重新编码
+                String decodedExistingData = new String(Base64.getDecoder().decode(existingData), StandardCharsets.UTF_8);
+                String newDecodedData = decodedExistingData + "\n" + data;
+                String newEncodedData = Base64.getEncoder().encodeToString(newDecodedData.getBytes(StandardCharsets.UTF_8));
+                
+                // 更新首批回调数据
+                firstCallback.setData(newEncodedData);
+                firstCallback.setReceiveTime(new Date());
+                callbackDataMapper.updateById(firstCallback);
+                System.out.println("后续批次回调数据已追加 - originalTaskId: " + originalTaskId + ", batchNumber: " + batchNumber);
             } else {
-                // 非批次任务，直接插入
+                // 如果多次重试后仍然没有找到首批回调数据，创建一个临时回调数据
+                // 后续当首批回调到达时，再合并数据
                 CallbackData callbackData = new CallbackData();
                 callbackData.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
                 callbackData.setTaskId(originalTaskId);
                 callbackData.setOriginalTaskId(originalTaskId);
                 callbackData.setUserId(userId);
-                callbackData.setData(Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8)));
+                // 在数据前添加批次标记，以便后续合并
+                String batchMarkedData = "[Batch " + batchNumber + "]\n" + data;
+                callbackData.setData(Base64.getEncoder().encodeToString(batchMarkedData.getBytes(StandardCharsets.UTF_8)));
                 callbackData.setReceiveTime(new Date());
                 callbackDataMapper.insert(callbackData);
-                System.out.println("非批次任务回调数据已插入 - taskId: " + taskId);
+                System.out.println("多次重试后仍未找到首批回调数据，创建临时回调数据 - originalTaskId: " + originalTaskId + ", batchNumber: " + batchNumber);
             }
+        } else {
+            // 非批次任务，直接插入
+            CallbackData callbackData = new CallbackData();
+            callbackData.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
+            callbackData.setTaskId(originalTaskId);
+            callbackData.setOriginalTaskId(originalTaskId);
+            callbackData.setUserId(userId);
+            callbackData.setData(Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8)));
+            callbackData.setReceiveTime(new Date());
+            callbackDataMapper.insert(callbackData);
+            System.out.println("非批次任务回调数据已插入 - taskId: " + taskId);
+        }
 
-            // 更新任务状态为已完成
-            Task updateTask = new Task();
-            updateTask.setStatus("COMPLETED");
-            updateTask.setUpdateTime(new Date());
-            updateTask.setProgress(task.getTotalProgress()); // 设置进度为100%
-            taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", originalTaskId));
+            // 查询当前任务状态
+            Task currentTask = taskMapper.selectOne(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>()
+                            .eq("task_id", originalTaskId)
+            );
+            
+            if (currentTask != null) {
+                // 计算已完成的批次数
+                int totalBatches = currentTask.getTotalBatches();
+                int completedBatches = 0;
+                
+                // 查询已完成的回调数据数量
+                Long callbackCount = callbackDataMapper.selectCount(
+                        new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CallbackData>()
+                                .eq("task_id", originalTaskId)
+                );
+                int completedCallbackCount = callbackCount != null ? callbackCount.intValue() : 0;
+                
+                completedBatches = completedCallbackCount;
+                
+                // 计算进度
+                int progress = (int) Math.round((double) completedBatches / totalBatches * 100);
+                
+                // 更新任务状态和进度
+                Task updateTask = new Task();
+                updateTask.setUpdateTime(new Date());
+                updateTask.setProgress(progress);
+                
+                // 只有当所有批次都完成时才更新为"COMPLETED"
+                if (completedBatches >= totalBatches) {
+                    updateTask.setStatus("COMPLETED");
+                    System.out.println("所有批次回调完成 - originalTaskId: " + originalTaskId);
+                } else {
+                    updateTask.setStatus("PROCESSING");
+                    System.out.println("批次回调进行中 - originalTaskId: " + originalTaskId + ", 已完成: " + completedBatches + "/" + totalBatches);
+                }
+                
+                taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", originalTaskId));
+            }
 
         } catch (Exception e) {
             // 处理异常

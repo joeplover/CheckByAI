@@ -45,9 +45,16 @@ public class WorkflowService {
     @Value("${checkai.langchainAgentApi}")
     private String langchainAgentApi;
 
+    private static final int BATCH_SIZE = 10;
+
     public String processExcelData(ExcelData excelData, String userId) throws Exception {
         // 生成任务ID
         String taskId = ShortIdUtil.generateShortId(); // 生成8位短ID
+
+        // 检查数据行数并拆分批次
+        int totalRows = excelData.getExcelBase().size();
+        int totalBatches = (int) Math.ceil((double) totalRows / BATCH_SIZE);
+        List<ExcelData> splitDataList = splitExcelData(excelData, totalBatches);
 
         // 设置超时时间（当前时间+8分钟）
         Date currentTime = new Date();
@@ -60,23 +67,118 @@ public class WorkflowService {
         task.setOriginalTaskId(taskId);
         task.setUserId(userId);
         task.setBatchNumber(0);
-        task.setTotalBatches(1);
+        task.setTotalBatches(totalBatches);
         task.setStatus("PENDING");
         task.setDataContent(objectMapper.writeValueAsString(excelData));
         task.setCreateTime(currentTime);
         task.setUpdateTime(currentTime);
         task.setTimeoutTime(timeoutTime);
         task.setProgress(0);
-        task.setTotalProgress(1);
+        task.setTotalProgress(totalBatches);
         taskMapper.insert(task);
 
-        // 发送请求到工作流（一次发送全部数据）
-        sendWorkflowRequest(excelData, taskId);
+        // 顺序发送请求（一个一个发送，等待回调成功后再发送下一个）
+        for (int i = 0; i < splitDataList.size(); i++) {
+            ExcelData splitData = splitDataList.get(i);
+            String batchTaskId = taskId + "_batch_" + (i + 1);
+
+            // 发送请求到工作流，最多重试3次
+            int retryCount = 0;
+            int maxRetries = 3;
+            boolean sendSuccess = false;
+            
+            while (!sendSuccess && retryCount < maxRetries) {
+                try {
+                    // 发送请求到工作流
+                    sendWorkflowRequest(splitData, batchTaskId, taskId);
+                    sendSuccess = true;
+                    System.out.println("批次发送成功 - taskId: " + taskId + ", batchNumber: " + (i + 1));
+                } catch (Exception e) {
+                    retryCount++;
+                    System.out.println("批次发送失败，正在重试 - taskId: " + taskId + ", batchNumber: " + (i + 1) + ", 重试次数: " + retryCount + ", 错误: " + e.getMessage());
+                    
+                    // 如果是最后一次重试，更新任务状态为失败
+                    if (retryCount >= maxRetries) {
+                        Task updateTask = new Task();
+                        updateTask.setStatus("FAILED");
+                        updateTask.setUpdateTime(new Date());
+                        taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", taskId));
+                        throw new Exception("批次发送失败，已达到最大重试次数 - batchNumber: " + (i + 1) + ", 错误: " + e.getMessage());
+                    }
+                    
+                    // 等待3秒后重试
+                    try {
+                        Thread.sleep(3000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+            
+            // 等待2秒，确保请求按顺序处理
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
 
         return taskId;
     }
 
-    private void sendWorkflowRequest(ExcelData excelData, String taskId) throws Exception {
+    private List<ExcelData> splitExcelData(ExcelData excelData, int totalBatches) {
+        List<ExcelData> splitDataList = new ArrayList<>();
+        List<Map<String, String>> excelBase = excelData.getExcelBase();
+        List<List<String>> excelPull = excelData.getExcelPull();
+        List<List<String>> excelPush = excelData.getExcelPush();
+        
+        int totalRows = excelBase.size();
+        System.out.println("开始拆分数据 - 总行数: " + totalRows + ", 总批次数: " + totalBatches);
+        
+        for (int i = 0; i < totalBatches; i++) {
+            int startIndex = i * BATCH_SIZE;
+            int endIndex = Math.min((i + 1) * BATCH_SIZE, totalRows);
+            
+            if (startIndex >= totalRows) {
+                break;
+            }
+            
+            System.out.println("批次 " + (i + 1) + " - 开始索引: " + startIndex + ", 结束索引: " + endIndex + ", 数据条数: " + (endIndex - startIndex));
+            
+            ExcelData splitData = new ExcelData();
+            splitData.setExcelBase(excelBase.subList(startIndex, endIndex));
+            
+            // 处理pull和push数据（如果有）
+            if (excelPull != null && !excelPull.isEmpty()) {
+                splitData.setExcelPull(excelPull.subList(startIndex, Math.min(endIndex, excelPull.size())));
+            }
+            
+            if (excelPush != null && !excelPush.isEmpty()) {
+                splitData.setExcelPush(excelPush.subList(startIndex, Math.min(endIndex, excelPush.size())));
+            }
+            
+            splitDataList.add(splitData);
+        }
+        
+        System.out.println("数据拆分完成 - 实际批次数: " + splitDataList.size());
+        
+        // 验证数据总量
+        int totalProcessedRows = 0;
+        for (int i = 0; i < splitDataList.size(); i++) {
+            int batchRows = splitDataList.get(i).getExcelBase().size();
+            totalProcessedRows += batchRows;
+            System.out.println("批次 " + (i + 1) + " 实际数据条数: " + batchRows);
+        }
+        System.out.println("总处理数据条数: " + totalProcessedRows + ", 原始数据条数: " + totalRows);
+        
+        if (totalProcessedRows != totalRows) {
+            System.out.println("警告: 数据拆分不完整，缺失 " + (totalRows - totalProcessedRows) + " 条数据");
+        }
+        
+        return splitDataList;
+    }
+
+    private void sendWorkflowRequest(ExcelData excelData, String batchTaskId, String taskId) throws Exception {
         // 构建请求数据
         Map<String, Object> requestData = new HashMap<>();
         
@@ -89,7 +191,7 @@ public class WorkflowService {
         // 构建taskId数据
         List<String> taskIdList = new ArrayList<>();
         Map<String, String> taskIdMap = new HashMap<>();
-        taskIdMap.put("taskId", taskId);
+        taskIdMap.put("taskId", batchTaskId);
         taskIdList.add(objectMapper.writeValueAsString(taskIdMap));
         
         // 构建excel_base数据
