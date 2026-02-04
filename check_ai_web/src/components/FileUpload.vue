@@ -211,7 +211,10 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { API_PATHS, buildApiUrl } from '../config/api';
+
+const router = useRouter();
 
 // 响应式数据
 const isDragover = ref(false);
@@ -282,6 +285,15 @@ const uploadFile = async () => {
       credentials: 'include'
     });
 
+    // 检查响应状态
+    if (response.status === 401) {
+      // Token过期，提示用户重新登录
+      alert('登录已过期，请重新登录');
+      // 跳转到登录页
+      router.push('/login');
+      return;
+    }
+
     const result = await response.json();
 
     if (result.success || result.code === 0) {
@@ -339,6 +351,15 @@ const refreshTasks = async () => {
       credentials: 'include'
     });
 
+    // 检查响应状态
+    if (response.status === 401) {
+      // Token过期，提示用户重新登录
+      alert('登录已过期，请重新登录');
+      // 跳转到登录页
+      router.push('/login');
+      return;
+    }
+
     const result = await response.json();
 
     if (result.success || result.code === 0) {
@@ -380,6 +401,15 @@ const fetchTaskResults = async (taskId) => {
       credentials: 'include'
     });
 
+    // 检查响应状态
+    if (response.status === 401) {
+      // Token过期，提示用户重新登录
+      alert('登录已过期，请重新登录');
+      // 跳转到登录页
+      router.push('/login');
+      return;
+    }
+
     const result = await response.json();
 
     if (result.success || result.code === 0) {
@@ -420,6 +450,15 @@ const deleteTask = async (taskId, taskTaskId) => {
       headers: headers,
       credentials: 'include'
     });
+
+    // 检查响应状态
+    if (response.status === 401) {
+      // Token过期，提示用户重新登录
+      alert('登录已过期，请重新登录');
+      // 跳转到登录页
+      router.push('/login');
+      return;
+    }
 
     const result = await response.json();
 

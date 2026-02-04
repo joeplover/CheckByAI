@@ -68,14 +68,6 @@ const router = createRouter({
           meta: {
             title: '文件处理 - 智慧物流系统'
           }
-        },
-        {
-          path: 'langchain',
-          name: 'langchain',
-          component: FileUpload,
-          meta: {
-            title: '智能分析 - 智慧物流系统'
-          }
         }
       ]
     }
