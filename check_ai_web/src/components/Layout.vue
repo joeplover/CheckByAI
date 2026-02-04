@@ -87,8 +87,11 @@ const toggleSidebar = () => {
 <style scoped>
 .layout {
   display: flex;
-  min-height: 100vh;
+  width: 100%;
+  height: 100vh;
   background-color: var(--neutral-50);
+  margin: 0;
+  padding: 0;
 }
 
 .sidebar {
@@ -284,7 +287,7 @@ const toggleSidebar = () => {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: 0;
   background-color: var(--neutral-50);
 }
 

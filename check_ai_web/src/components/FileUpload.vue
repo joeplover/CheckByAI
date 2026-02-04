@@ -479,16 +479,15 @@ onMounted(() => {
 
 <style scoped>
 .file-upload-container {
-  padding: 20px 0;
+  padding: 0;
   background-color: #f5f7fa;
-  min-height: 100vh;
-  max-width: 1400px;
-  margin: 0 auto;
+  height: 100%;
   width: 100%;
+  margin: 0;
 }
 
 .main-content {
-  padding: 0 20px;
+  padding: 0;
   width: 100%;
   box-sizing: border-box;
 }
