@@ -231,4 +231,12 @@ public class CallbackService {
         }
         return results;
     }
+
+    /**
+     * 根据任务ID删除回调数据
+     * @param taskId 任务ID
+     */
+    public void deleteByTaskId(String taskId) {
+        callbackDataMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CallbackData>().eq("task_id", taskId));
+    }
 }

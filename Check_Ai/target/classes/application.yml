@@ -62,3 +62,4 @@ checkai:
     api-url: https://api.coze.cn/v3/chat
     bot-id: 7595441952234536970
     authorization: Bearer pat_V8e1040IgniXztW1qKqVuu2ZnhohJMuCKIwYeFUYk7Unr9E2GiS5xjUMrRgSlSYW
+  langchainAgentApi: http://localhost:5000/api/process

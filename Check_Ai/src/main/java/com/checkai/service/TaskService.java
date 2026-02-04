@@ -66,4 +66,16 @@ public class TaskService {
     public Task getTaskById(String taskId) {
         return taskMapper.selectById(taskId);
     }
+
+    /**
+     * 根据任务ID和用户ID删除任务
+     * @param taskId 任务ID
+     * @param userId 用户ID
+     */
+    public void deleteTask(String taskId, String userId) {
+        QueryWrapper<Task> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", taskId)
+                .eq("user_id", userId);
+        taskMapper.delete(queryWrapper);
+    }
 }

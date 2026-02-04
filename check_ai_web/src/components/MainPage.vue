@@ -1,27 +1,18 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import { useRouter } from 'vue-router';
+import { API_BASE_URL } from '../config/api.js';
 
-// 初始化路由
-const router = useRouter();
-
-// 文件上传相关
 const file = ref(null);
 const uploading = ref(false);
 const uploadMessage = ref('');
 
-// 任务相关
 const tasks = ref([]);
 const selectedTask = ref(null);
 const taskResults = ref([]);
 const loadingTasks = ref(false);
 const loadingResults = ref(false);
 
-// 模拟任务数据，仅用于初始展示
-const mockTasks = [];
-
-// 文件选择处理
 const handleFileChange = (event) => {
   file.value = event.target.files[0];
   if (file.value) {
@@ -31,7 +22,6 @@ const handleFileChange = (event) => {
   }
 };
 
-// 上传文件
 const handleUpload = async () => {
   if (!file.value) {
     uploadMessage.value = '请选择要上传的Excel文件';
@@ -45,20 +35,17 @@ const handleUpload = async () => {
     const formData = new FormData();
     formData.append('file', file.value);
 
-    // 获取本地存储的token
     const token = localStorage.getItem('token');
     
-    // 调用后端API上传文件
-    const response = await axios.post('http://checkbyai.free.idcfengye.com/api/upload-excel', formData, {
+    const response = await axios.post(`${API_BASE_URL}/api/upload-excel`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Authorization': token ? `Bearer ${token}` : '',
       },
     });
 
-    if (response.data.success) {
+    if (response.data.code === 0) {
             uploadMessage.value = `上传成功！任务ID: ${response.data.taskId}`;
-            // 添加到任务列表
             tasks.value.unshift({
               id: response.data.taskId,
               name: `任务-${response.data.taskId.substring(0, 8)}`,
@@ -66,21 +53,17 @@ const handleUpload = async () => {
               createTime: new Date().toLocaleString(),
               taskId: response.data.taskId,
             });
-      // 清空文件选择
       file.value = null;
       document.getElementById('file-input').value = '';
     } else {
-      uploadMessage.value = `上传失败: ${response.data.error}`;
+      uploadMessage.value = `上传失败: ${response.data.message}`;
     }
   } catch (err) {
     console.error('上传失败:', err);
-    // 显示更详细的错误信息
     if (err.response) {
-      // 服务器返回了响应，但状态码不是2xx
       console.error('响应数据:', err.response.data);
       uploadMessage.value = `上传失败: ${err.response.data.error || err.response.data.message || err.message}`;
     } else {
-      // 没有收到服务器响应
       uploadMessage.value = `上传失败: ${err.message}`;
     }
   } finally {
@@ -88,27 +71,23 @@ const handleUpload = async () => {
   }
 };
 
-// 获取任务列表
 const fetchTasks = async () => {
   loadingTasks.value = true;
   try {
-    // 调用后端API获取任务列表
     console.log('获取任务列表');
     const token = localStorage.getItem('token');
-    const response = await axios.get('http://checkbyai.free.idcfengye.com/api/tasks', {
+    const response = await axios.get(`${API_BASE_URL}/api/tasks`, {
       headers: {
         'Authorization': token ? `Bearer ${token}` : ''
       }
     });
     
-    if (response.data.success) {
-            // 将后端返回的任务数据转换为前端显示格式
+    if (response.data.code === 0) {
             tasks.value = response.data.tasks.map(task => ({
               id: task.id,
               name: `任务-${task.taskId.substring(0, 8)}`,
               status: task.status,
               createTime: new Date(task.createTime).toLocaleString(),
-              // 添加其他需要的字段
               taskId: task.taskId,
               originalTaskId: task.originalTaskId,
               userId: task.userId,
@@ -118,7 +97,7 @@ const fetchTasks = async () => {
               totalProgress: task.totalProgress
             }));
     } else {
-      console.error('获取任务列表失败:', response.data.error);
+      console.error('获取任务列表失败:', response.data.message || '未知错误');
       tasks.value = [];
     }
   } catch (err) {
@@ -129,22 +108,19 @@ const fetchTasks = async () => {
   }
 };
 
-// 获取任务结果
 const fetchTaskResults = async (taskId) => {
   loadingResults.value = true;
   selectedTask.value = taskId;
   try {
-    // 调用后端API获取任务结果
     console.log('获取任务结果:', taskId);
     const token = localStorage.getItem('token');
-    const response = await axios.get(`http://checkbyai.free.idcfengye.com/api/task/${taskId}/results`, {
+    const response = await axios.get(`${API_BASE_URL}/api/task/${taskId}/results`, {
       headers: {
         'Authorization': token ? `Bearer ${token}` : ''
       }
     });
     
-    if (response.data.success) {
-      // 将后端返回的结果数据转换为前端显示格式
+    if (response.data.code === 0) {
       taskResults.value = response.data.results.map(result => ({
         id: result.id,
         taskId: result.taskId,
@@ -153,7 +129,7 @@ const fetchTaskResults = async (taskId) => {
         createTime: new Date(result.receiveTime).toLocaleString()
       }));
     } else {
-      console.error('获取任务结果失败:', response.data.error);
+      console.error('获取任务结果失败:', response.data.message);
       taskResults.value = [];
     }
   } catch (err) {
@@ -164,71 +140,68 @@ const fetchTaskResults = async (taskId) => {
   }
 };
 
-// 获取当前用户名
-const username = ref(localStorage.getItem('username') || '用户');
-
-// 退出登录
-const handleLogout = () => {
-  // 清除本地存储的token和用户信息
-  localStorage.removeItem('token');
-  localStorage.removeItem('userId');
-  localStorage.removeItem('username');
-  localStorage.removeItem('nickname');
-  
-  // 跳转到登录页
-  router.push({ name: 'login' });
-};
-
-// 组件挂载时获取任务列表
 onMounted(() => {
   fetchTasks();
-  username.value = localStorage.getItem('username') || '用户';
 });
 </script>
 
 <template>
   <div class="main-page">
-    <!-- 顶部导航栏 -->
-    <div class="top-nav">
-      <div class="nav-left">
-        <h1 class="system-title">AI Check System</h1>
-      </div>
-      <div class="nav-right">
-        <span class="username">欢迎，{{ username }}</span>
-        <button @click="handleLogout" class="logout-btn">退出登录</button>
-      </div>
-    </div>
-    
-    <!-- 主体内容区域，分为左侧和右侧 -->
     <div class="content-container">
-      <!-- 左侧区域：上传文件和任务列表 -->
       <div class="left-section">
         <div class="upload-section">
-          <h2>上传Excel文件</h2>
+          <div class="upload-section-header">
+            <h2>上传Excel文件</h2>
+            <div class="upload-info">
+              <span class="info-icon">ℹ️</span>
+              <span>支持 .xlsx 和 .xls 格式文件</span>
+            </div>
+          </div>
           <div class="upload-form">
-            <div class="file-input-container">
-              <input
-                type="file"
-                id="file-input"
-                accept=".xlsx, .xls"
-                @change="handleFileChange"
-                class="file-input"
-              />
-              <label for="file-input" class="file-input-label">
-                <span v-if="!file">选择Excel文件</span>
-                <span v-else>{{ file.name }}</span>
-              </label>
+            <div 
+              class="file-drop-area"
+              @dragover.prevent
+              @dragenter.prevent
+              @drop.prevent="(e) => {
+                const droppedFile = e.dataTransfer.files[0];
+                if (droppedFile) {
+                  file.value = droppedFile;
+                  uploadMessage.value = `已选择文件: ${droppedFile.name}`;
+                }
+              }"
+            >
+              <div class="file-input-container">
+                <input
+                  type="file"
+                  id="file-input"
+                  accept=".xlsx, .xls"
+                  @change="handleFileChange"
+                  class="file-input"
+                />
+                <label for="file-input" class="file-input-label">
+                  <div class="upload-icon">📁</div>
+                  <div class="upload-text">
+                    <span v-if="!file" class="primary-text">拖放文件到此处或点击选择</span>
+                    <span v-else class="selected-file">{{ file.name }}</span>
+                  </div>
+                  <div class="upload-hint">
+                    <span v-if="!file">支持 .xlsx 和 .xls 格式</span>
+                  </div>
+                </label>
+              </div>
             </div>
             <button
               @click="handleUpload"
               class="upload-btn"
-              :disabled="uploading"
+              :disabled="uploading || !file"
             >
-              {{ uploading ? '上传中...' : '上传' }}
+              <span class="btn-icon">{{ uploading ? '⏳' : '📤' }}</span>
+              <span>{{ uploading ? '上传中...' : '开始上传' }}</span>
             </button>
           </div>
-          <div v-if="uploadMessage" class="upload-message">
-            {{ uploadMessage }}
+          <div v-if="uploadMessage" class="upload-message" :class="{ success: uploadMessage.includes('成功'), error: uploadMessage.includes('失败') }">
+            <span class="message-icon">{{ uploadMessage.includes('成功') ? '✅' : uploadMessage.includes('失败') ? '❌' : 'ℹ️' }}</span>
+            <span>{{ uploadMessage }}</span>
           </div>
         </div>
 
@@ -251,19 +224,36 @@ onMounted(() => {
                 :class="{ active: selectedTask === task.taskId }"
                 @click="fetchTaskResults(task.taskId)"
               >
-                <div class="task-id">{{ task.taskId }}</div>
+                <div class="task-header">
+                  <div class="task-id">{{ task.taskId }}</div>
+                  <div class="task-time">{{ task.createTime }}</div>
+                </div>
                 <div class="task-name">{{ task.name }}</div>
                 <div class="task-status" :class="task.status">
-                  {{ task.status === 'COMPLETED' ? '已完成' : task.status === 'processing' ? '处理中' : task.status === 'FAILED' ? '失败' : '未知状态' }}
+                  <span class="status-icon">{{ 
+                    task.status === 'COMPLETED' ? '✅' : 
+                    task.status === 'processing' ? '⏳' : 
+                    task.status === 'FAILED' ? '❌' : 'ℹ️' 
+                  }}</span>
+                  <span>{{ task.status === 'COMPLETED' ? '已完成' : task.status === 'processing' ? '处理中' : task.status === 'FAILED' ? '失败' : '未知状态' }}</span>
                 </div>
-                <div class="task-time">{{ task.createTime }}</div>
+                <div v-if="task.totalProgress !== undefined" class="task-progress">
+                  <div class="progress-info">
+                    <span>进度: {{ task.totalProgress }}%</span>
+                    <span v-if="task.batchNumber && task.totalBatches">
+                      批次: {{ task.batchNumber }}/{{ task.totalBatches }}
+                    </span>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill" :style="{ width: task.totalProgress + '%' }"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      <!-- 右侧区域：结果显示 -->
       <div class="right-section">
         <div class="results-section" v-if="selectedTask">
           <h2>任务结果 - {{ selectedTask }}</h2>
@@ -297,75 +287,18 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 全局样式重置 */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f5f7fa;
-  color: #333;
-  line-height: 1.6;
-}
-
 .main-page {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  padding: 20px;
-  gap: 20px;
+  height: 100%;
+  padding: 0;
   background-color: #f5f7fa;
-}
-
-/* 顶部导航栏 */
-.top-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #42b883;
-  color: white;
-  padding: 15px 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  height: 60px;
-}
-
-.nav-left .system-title {
-  font-size: 20px;
-  margin: 0;
-  font-weight: 600;
-}
-
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.username {
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.logout-btn {
-  padding: 8px 16px;
-  background-color: #ffffff;
-  color: #42b883;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.logout-btn:hover {
-  background-color: #f0fff8;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 h2 {
@@ -380,18 +313,14 @@ h3 {
   margin-bottom: 10px;
 }
 
-/* 主体内容区域，分为左侧和右侧 */
 .content-container {
   display: flex;
   gap: 20px;
   flex: 1;
-  height: calc(100vh - 100px);
+  height: 100%;
   width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
 }
 
-/* 左侧区域：上传文件和任务列表 */
 .left-section {
   width: 400px;
   display: flex;
@@ -399,7 +328,6 @@ h3 {
   gap: 20px;
 }
 
-/* 右侧区域：结果显示 */
 .right-section {
   flex: 1;
   background-color: #ffffff;
@@ -410,33 +338,71 @@ h3 {
   overflow-y: auto;
 }
 
-/* 上传区域 */
 .upload-section {
   background-color: #ffffff;
-  padding: 24px;
-  border-radius: 10px;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 32px;
+  border-radius: 16px;
+  border: 2px dashed #e3e7ed;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   width: 100%;
-  min-height: 180px;
+  min-height: 240px;
   transition: all 0.3s ease;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fc 100%);
 }
 
 .upload-section:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-  border-color: #42b883;
+  box-shadow: 0 6px 24px rgba(74, 108, 247, 0.12);
+  border-color: #4a6cf7;
+  transform: translateY(-2px);
+}
+
+.upload-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.upload-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8f9fc;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #6c757d;
+}
+
+.info-icon {
+  font-size: 16px;
 }
 
 .upload-form {
   display: flex;
-  gap: 15px;
-  align-items: center;
-  margin-bottom: 15px;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.file-drop-area {
+  border: 2px dashed #e3e7ed;
+  border-radius: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  background: #f8f9fc;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.file-drop-area:hover {
+  border-color: #4a6cf7;
+  background: #f0f2ff;
 }
 
 .file-input-container {
   position: relative;
-  flex: 1;
+  width: 100%;
 }
 
 .file-input {
@@ -448,292 +414,530 @@ h3 {
 }
 
 .file-input-label {
-  display: inline-block;
-  padding: 12px 20px;
-  background-color: #42b883;
-  color: white;
-  border: none;
-  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 24px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
   width: 100%;
+}
+
+.upload-icon {
+  font-size: 48px;
+  transition: transform 0.3s ease;
+}
+
+.file-drop-area:hover .upload-icon {
+  transform: scale(1.1);
+}
+
+.upload-text {
   text-align: center;
 }
 
-.file-input-label:hover {
-  background-color: #3aa876;
+.primary-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 8px;
+}
+
+.selected-file {
+  font-size: 16px;
+  font-weight: 600;
+  color: #4a6cf7;
+  background: #f0f2ff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #e3e7ed;
+}
+
+.upload-hint {
+  font-size: 14px;
+  color: #6c757d;
+  margin-top: 8px;
 }
 
 .upload-btn {
-  padding: 12px 24px;
-  background-color: #4285f4;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, #4a6cf7, #3c63f5);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
   font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(74, 108, 247, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 auto;
+  width: 240px;
 }
 
 .upload-btn:hover:not(:disabled) {
-  background-color: #3367d6;
+  background: linear-gradient(135deg, #3c63f5, #2d56f4);
+  box-shadow: 0 6px 20px rgba(74, 108, 247, 0.4);
+  transform: translateY(-2px);
 }
 
 .upload-btn:disabled {
-  background-color: #a0c8ff;
+  background: linear-gradient(135deg, #a0b4ff, #8ba4ff);
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-icon {
+  font-size: 18px;
 }
 
 .upload-message {
   font-size: 14px;
-  color: #666;
-  margin-top: 10px;
+  color: #6c757d;
+  margin-top: 16px;
   word-wrap: break-word;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #f8f9fc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 4px solid #e3e7ed;
 }
 
-/* 任务列表 */
+.upload-message.success {
+  color: #28a745;
+  background: #f8fff8;
+  border-left-color: #28a745;
+}
+
+.upload-message.error {
+  color: #dc3545;
+  background: #fff8f8;
+  border-left-color: #dc3545;
+}
+
+.message-icon {
+  font-size: 16px;
+}
+
 .tasks-section {
   background-color: #ffffff;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #e3e7ed;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   width: 100%;
   flex: 1;
   overflow-y: auto;
-  min-height: 300px;
+  min-height: 400px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fc 100%);
 }
 
 .tasks-header {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 15px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e3e7ed;
+}
+
+.tasks-header h2 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .refresh-btn {
-  padding: 8px 16px;
-  background-color: #4285f4;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #4a6cf7, #3c63f5);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
   font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(74, 108, 247, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background-color: #3367d6;
+  background: linear-gradient(135deg, #3c63f5, #2d56f4);
+  box-shadow: 0 4px 12px rgba(74, 108, 247, 0.4);
+  transform: translateY(-1px);
 }
 
 .refresh-btn:disabled {
-  background-color: #a0c8ff;
+  background: linear-gradient(135deg, #a0b4ff, #8ba4ff);
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .tasks-list {
-  min-height: 200px;
+  min-height: 240px;
 }
 
 .no-tasks {
   text-align: center;
-  color: #999;
-  padding: 40px 0;
+  color: #6c757d;
+  padding: 60px 24px;
+  background: #f8f9fc;
+  border-radius: 12px;
+  border: 2px dashed #e3e7ed;
+}
+
+.no-tasks::before {
+  content: '📋';
+  display: block;
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
 }
 
 .tasks-grid {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
 }
 
 .task-item {
-  background-color: white;
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #e3e7ed;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   width: 100%;
-  min-height: 120px;
+  min-height: 160px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .task-item:hover {
-  border-color: #42b883;
-  box-shadow: 0 2px 8px rgba(66, 184, 131, 0.15);
+  border-color: #4a6cf7;
+  box-shadow: 0 4px 16px rgba(74, 108, 247, 0.15);
+  transform: translateY(-2px);
 }
 
 .task-item.active {
-  border-color: #42b883;
-  background-color: #f0fff8;
+  border-color: #4a6cf7;
+  background-color: #f8f9ff;
+  box-shadow: 0 4px 16px rgba(74, 108, 247, 0.15);
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
 }
 
 .task-id {
   font-size: 12px;
-  color: #999;
-  margin-bottom: 5px;
+  color: #6c757d;
+  font-weight: 500;
   word-break: break-all;
-}
-
-.task-name {
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: #333;
-  font-size: 16px;
-}
-
-.task-status {
-  display: inline-block;
   padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-.task-status.COMPLETED {
-  background-color: #e6f7e6;
-  color: #388e3c;
-}
-
-.task-status.PROCESSING,
-.task-status.processing {
-  background-color: #fff3e0;
-  color: #f57c00;
-}
-
-.task-status.FAILED {
-  background-color: #ffebee;
-  color: #d32f2f;
+  background: #f8f9fc;
+  border-radius: 6px;
 }
 
 .task-time {
   font-size: 12px;
   color: #999;
-  text-align: right;
+  font-weight: 500;
+  padding: 4px 8px;
+  background: #f8f9fc;
+  border-radius: 6px;
 }
 
-/* 结果列表 */
+.task-name {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.task-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.task-status.COMPLETED {
+  background: linear-gradient(135deg, #e6f7e6, #d4edda);
+  color: #28a745;
+  border: 1px solid #c3e6cb;
+}
+
+.task-status.PROCESSING,
+.task-status.processing {
+  background: linear-gradient(135deg, #fff3e0, #fef3cd);
+  color: #ffc107;
+  border: 1px solid #ffeeba;
+}
+
+.task-status.FAILED {
+  background: linear-gradient(135deg, #ffebee, #f8d7da);
+  color: #dc3545;
+  border: 1px solid #f5c6cb;
+}
+
+.status-icon {
+  font-size: 14px;
+}
+
+.task-progress {
+  margin-top: 8px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #f0f2f5;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a6cf7, #3c63f5);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(74, 108, 247, 0.4);
+}
+
 .results-section {
-  background-color: #ffffff;
-  padding: 20px;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fc 100%);
+  padding: 32px;
+  border-radius: 16px;
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e3e7ed;
+}
+
+.results-section h2 {
+  margin: 0 0 24px 0;
+  color: #2c3e50;
+  font-size: 24px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.results-section h2::before {
+  content: '📊';
+  font-size: 24px;
 }
 
 .loading-results {
   text-align: center;
-  color: #666;
-  padding: 40px 0;
+  color: #4a6cf7;
+  padding: 80px 24px;
   flex: 1;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 500;
+  background: #f8f9fc;
+  border-radius: 12px;
+  border: 2px dashed #e3e7ed;
+}
+
+.loading-results::before {
+  content: '⏳';
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .no-results {
   text-align: center;
-  color: #999;
-  padding: 40px 0;
+  color: #6c757d;
+  padding: 80px 24px;
   flex: 1;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 500;
+  background: #f8f9fc;
+  border-radius: 12px;
+  border: 2px dashed #e3e7ed;
+}
+
+.no-results::before {
+  content: '📋';
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
 }
 
 .no-selection {
-  background-color: #ffffff;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fc 100%);
+  border-radius: 16px;
   min-height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  color: #999;
+  color: #6c757d;
   flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e3e7ed;
 }
 
 .no-selection-content {
   text-align: center;
-  padding: 40px;
+  padding: 60px 40px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  max-width: 400px;
+}
+
+.no-selection-content::before {
+  content: '👈';
+  display: block;
+  font-size: 48px;
+  margin-bottom: 24px;
+  opacity: 0.6;
 }
 
 .no-selection-content h3 {
-  color: #666;
-  margin-bottom: 10px;
-  font-size: 20px;
+  color: #2c3e50;
+  margin-bottom: 16px;
+  font-size: 24px;
+  font-weight: 600;
 }
 
 .no-selection-content p {
-  color: #999;
+  color: #6c757d;
   font-size: 16px;
+  line-height: 1.5;
 }
 
 .results-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   flex: 1;
   overflow-y: auto;
 }
 
 .result-item {
-  background-color: white;
-  padding: 24px;
-  border-radius: 10px;
-  border: 1px solid #e8e8e8;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: white;
+  padding: 28px;
+  border-radius: 16px;
+  border: 1px solid #e3e7ed;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   overflow-wrap: break-word;
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .result-item:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-  border-color: #42b883;
+  box-shadow: 0 6px 24px rgba(74, 108, 247, 0.15);
+  border-color: #4a6cf7;
+  transform: translateY(-2px);
+}
+
+.result-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(135deg, #4a6cf7, #3c63f5);
+  border-radius: 16px 0 0 16px;
 }
 
 .result-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e3e7ed;
 }
 
 .result-id {
-  font-size: 13px;
-  color: #666;
-  font-weight: 500;
+  font-size: 14px;
+  color: #4a6cf7;
+  font-weight: 600;
+  background: #f0f2ff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #e3e7ed;
 }
 
 .result-time {
-  font-size: 13px;
-  color: #999;
+  font-size: 14px;
+  color: #6c757d;
+  font-weight: 500;
+  padding: 6px 12px;
+  background: #f8f9fc;
+  border-radius: 8px;
 }
 
 .result-data {
   font-size: 15px;
-  color: #333;
-  line-height: 1.9;
-  background-color: #f8f9fa;
-  padding: 20px;
-  border-radius: 8px;
+  color: #2c3e50;
+  line-height: 1.8;
+  background: linear-gradient(135deg, #f8f9fc 0%, #ffffff 100%);
+  padding: 24px;
+  border-radius: 12px;
   white-space: pre-wrap;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  border-left: 4px solid #42b883;
-  min-height: 200px;
+  border: 1px solid #e3e7ed;
+  min-height: 240px;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -752,7 +956,6 @@ h3 {
   background: #a8a8a8;
 }
 
-/* 响应式设计 */
 @media (max-width: 1024px) {
   .content-container {
     flex-direction: column;

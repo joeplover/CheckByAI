@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import { API_BASE_URL } from '../config/api.js';
 
 const emit = defineEmits(['login']);
 const router = useRouter();
@@ -28,7 +29,7 @@ const handleLogin = async () => {
     // 调用后端的登录API获取JWT token
     console.log('登录请求:', { username: username.value, password: password.value });
     
-    const response = await axios.post('http://checkbyai.free.idcfengye.com/auth/login', {
+    const response = await axios.post(`${API_BASE_URL}/auth/login`, {
       username: username.value,
       password: password.value
     });
@@ -58,7 +59,7 @@ const handleLogin = async () => {
 <template>
   <div class="login-container">
     <div class="login-form">
-      <h2>登录系统</h2>
+      <h2>智慧物流系统 - 登录</h2>
       <div class="form-group">
         <label for="username">用户名</label>
         <input

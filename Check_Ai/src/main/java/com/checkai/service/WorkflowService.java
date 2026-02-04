@@ -42,6 +42,9 @@ public class WorkflowService {
     @Value("${checkai.workflow.authorization}")
     private String authorization;
 
+    @Value("${checkai.langchainAgentApi}")
+    private String langchainAgentApi;
+
     private static final int BATCH_SIZE = 5;
 
     public String processExcelData(ExcelData excelData, String userId) throws Exception {
@@ -217,5 +220,62 @@ public class WorkflowService {
             taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", mainTaskId));
             throw new Exception("Workflow request failed: " + response.getStatusCode());
         }
+    }
+
+    public Map<String, Object> processExcelWithLangChain(org.springframework.web.multipart.MultipartFile file, String userId) throws Exception {
+        // 生成任务ID
+        String taskId = ShortIdUtil.generateShortId();
+
+        // 构建multipart/form-data请求
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        // 构建请求体
+        org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+        // 添加文件 - 使用ByteArrayResource代替InputStreamResource，因为ByteArrayResource可以多次读取
+        byte[] fileBytes = file.getBytes();
+        body.add("file", new org.springframework.core.io.ByteArrayResource(fileBytes) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename();
+            }
+        });
+
+        HttpEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        // 发送请求到LangChain Agent API
+        ResponseEntity<String> response = restTemplate.postForEntity(langchainAgentApi, requestEntity, String.class);
+
+        // 处理响应
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new Exception("LangChain Agent API request failed: " + response.getStatusCode());
+        }
+
+        // 解析响应结果
+        Map<String, Object> responseData = objectMapper.readValue(response.getBody(), Map.class);
+
+        // 保存任务到数据库
+        Task task = new Task();
+        task.setId(ShortIdUtil.generateShortId());
+        task.setTaskId(taskId);
+        task.setOriginalTaskId(taskId);
+        task.setUserId(userId);
+        task.setBatchNumber(0);
+        task.setTotalBatches(1);
+        task.setStatus("COMPLETED");
+        task.setDataContent(response.getBody());
+        task.setCreateTime(new Date());
+        task.setUpdateTime(new Date());
+        task.setTimeoutTime(new Date(System.currentTimeMillis() + 8 * 60 * 1000));
+        task.setProgress(100);
+        task.setTotalProgress(100);
+        taskMapper.insert(task);
+
+        // 构建返回结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("taskId", taskId);
+        result.put("response", responseData);
+
+        return result;
     }
 }

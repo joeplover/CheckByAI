@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import { API_BASE_URL } from '../config/api.js';
 
 const router = useRouter();
 
@@ -36,7 +37,7 @@ const handleRegister = async () => {
 
   try {
     // 调用后端的注册API
-    const response = await axios.post('http://checkbyai.free.idcfengye.com/auth/register', {
+    const response = await axios.post(`${API_BASE_URL}/auth/register`, {
       username: username.value,
       password: password.value,
       nickname: nickname.value,

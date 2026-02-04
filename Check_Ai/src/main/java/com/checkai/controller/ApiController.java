@@ -211,5 +211,68 @@ public class ApiController {
             return ResponseEntity.status(500).body(result);
         }
     }
+
+    @PostMapping("/upload-excel-langchain")
+    @Operation(summary = "上传Excel文件并调用LangChain Agent", description = "上传Excel文件，调用LangChain Agent API生成taskId，等待结果返回后插入数据库")
+    public ResponseEntity<Map<String, Object>> uploadExcelLangChain(@RequestParam("file") MultipartFile file) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            if (file.isEmpty()) {
+                result.put("success", false);
+                result.put("error", "空文件名");
+                return ResponseEntity.badRequest().body(result);
+            }
+
+            // 从ThreadLocal中获取当前用户ID
+            String userId = CurrentUserHolder.getUserId();
+            // 如果获取不到，使用默认值
+            if (userId == null) {
+                userId = "test-user";
+            }
+
+            // 调用服务层方法处理文件上传和API调用
+            Map<String, Object> processResult = workflowService.processExcelWithLangChain(file, userId);
+
+            result.put("success", true);
+            result.put("taskId", processResult.get("taskId"));
+            result.put("message", "文件上传成功，任务已处理完成");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    @DeleteMapping("/task/{taskId}")
+    @Operation(summary = "删除任务", description = "根据任务ID删除任务及其相关数据")
+    public ResponseEntity<Map<String, Object>> deleteTask(@PathVariable String taskId) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            // 从ThreadLocal中获取当前用户ID
+            String userId = CurrentUserHolder.getUserId();
+            if (userId == null) {
+                result.put("success", false);
+                result.put("error", "未获取到用户信息");
+                return ResponseEntity.status(401).body(result);
+            }
+
+            // 删除任务及其相关数据
+            // 1. 删除任务相关的回调数据
+            callbackService.deleteByTaskId(taskId);
+            // 2. 删除任务
+            taskService.deleteTask(taskId, userId);
+
+            result.put("success", true);
+            result.put("message", "任务删除成功");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
 }
 

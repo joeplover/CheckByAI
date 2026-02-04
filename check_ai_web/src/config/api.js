@@ -9,6 +9,7 @@ export const API_PATHS = {
   
   // 业务相关
   UPLOAD_EXCEL: '/api/upload-excel',
+  UPLOAD_EXCEL_LANGCHAIN: '/api/upload-excel-langchain',
   GET_TASKS: '/api/tasks',
   GET_TASK_RESULTS: '/api/task/:taskId/results'
 };
