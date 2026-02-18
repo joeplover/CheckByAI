@@ -125,7 +125,7 @@
                     <span class="task-id-small">{{ task.taskId }}</span>
                     <div class="task-header-actions">
                       <span :class="['task-status', task.status.toLowerCase()]">{{ task.status }}</span>
-                      <button @click.stop="deleteTask(task.id, task.taskId)" class="btn btn-sm btn-danger delete-btn">
+                      <button @click.stop="deleteTask(task.taskId)" class="btn btn-sm btn-danger delete-btn">
                         <span class="icon">×</span>
                       </button>
                     </div>
@@ -427,7 +427,7 @@ const fetchTaskResults = async (taskId) => {
 };
 
 // 删除任务
-const deleteTask = async (taskId, taskTaskId) => {
+const deleteTask = async (taskId) => {
   if (!confirm('确定要删除这个任务吗？')) {
     return;
   }
@@ -437,14 +437,13 @@ const deleteTask = async (taskId, taskTaskId) => {
     const token = localStorage.getItem('token');
 
     // 构建请求头
-    const headers = {
-      'Content-Type': 'application/json'
-    };
+    const headers = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
     // 调用删除任务的API
+    // 注意：后端接口 /api/task/{taskId} 这里的 taskId 是业务字段 task.task_id（不是数据库主键id）
     const response = await fetch(buildApiUrl(`/api/task/${taskId}`), {
       method: 'DELETE',
       headers: headers,
@@ -467,7 +466,7 @@ const deleteTask = async (taskId, taskTaskId) => {
       // 刷新任务列表
       await refreshTasks();
       // 如果删除的是当前选中的任务，清除选中状态
-      if (selectedTask.value && selectedTask.value.id === taskId) {
+      if (selectedTask.value && selectedTask.value.taskId === taskId) {
         selectedTask.value = null;
       }
     } else {

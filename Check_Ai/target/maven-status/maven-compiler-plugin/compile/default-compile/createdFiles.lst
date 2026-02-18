@@ -38,6 +38,7 @@ com\checkai\util\ShortIdUtil.class
 com\checkai\config\CorsConfig.class
 com\checkai\entity\Task.class
 com\checkai\service\AuthService.class
+com\checkai\config\PasswordConfig.class
 com\checkai\interceptor\JwtInterceptor.class
 com\checkai\config\WebConfig.class
 com\checkai\service\CallbackService.class

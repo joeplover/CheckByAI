@@ -1,8 +1,11 @@
 spring:
+  profiles:
+    # IDEA本地开发建议启用 local：它会加载 application-local.yml（已在仓库.gitignore里忽略，避免提交密钥）
+    active: ${SPRING_PROFILES_ACTIVE:local}
   datasource:
-    url: jdbc:mysql://192.168.91.132:3306/logisticsAi?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: root123
+    url: ${DB_URL:jdbc:mysql://192.168.91.132:3306/logisticsAi?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root123}
     driver-class-name: com.mysql.cj.jdbc.Driver
     # HikariCP 连接池配置
     hikari:
@@ -34,10 +37,16 @@ spring:
     database-platform: org.hibernate.dialect.MySQL8Dialect
   data:
     redis:
-      host: 192.168.91.132
-      port: 6379
-      password: 
-      database: 0
+      host: ${REDIS_HOST:192.168.91.132}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:192.168.91.132}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
   servlet:
     multipart:
       max-file-size: 10MB
@@ -51,7 +60,7 @@ server:
   port: 8080
 
 jwt:
-  secret: checkai-secret-key-2026-stronger-and-longer-key-for-jwt-authentication
+  secret: ${JWT_SECRET:change-me-to-a-strong-secret-key-at-least-32-bytes}
   expiration: 86400000
 
 swagger:
@@ -59,7 +68,9 @@ swagger:
 
 checkai:
   workflow:
-    api-url: https://api.coze.cn/v3/chat
-    bot-id: 7595441952234536970
-    authorization: Bearer pat_V8e1040IgniXztW1qKqVuu2ZnhohJMuCKIwYeFUYk7Unr9E2GiS5xjUMrRgSlSYW
-  langchainAgentApi: http://localhost:5000/api/process
+    # Coze 工作流接口（本项目当前代码实际调用的是 workflows/chat）
+    api-url: ${CHECKAI_WORKFLOW_API_URL:https://api.coze.cn/v1/workflows/chat}
+    workflow-id: ${CHECKAI_WORKFLOW_ID:7595443144305852425}
+    bot-id: ${CHECKAI_WORKFLOW_BOT_ID:}
+    authorization: ${CHECKAI_WORKFLOW_AUTHORIZATION:}
+  langchainAgentApi: ${LANGCHAIN_AGENT_API:http://localhost:5000/api/process}

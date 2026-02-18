@@ -104,48 +104,48 @@ mysql -u root -p < sql/full_schema.sql
 
 ### 3. 后端配置
 
-1. 修改后端配置文件：
+1. 修改后端配置文件/环境变量（推荐用环境变量注入敏感信息）：
 
 ```yaml
-# Check_Ai/src/main/resources/application.yml
+# Check_Ai/src/main/resources/application.yml（已改为支持环境变量注入）
 server:
   port: 8080
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/check_ai?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
-  redis:
-    host: localhost
-    port: 6379
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: none
+    url: ${DB_URL:jdbc:mysql://localhost:3306/check_ai?...}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 jwt:
-  secret: your-secret-key
-  expiration: 86400
+  secret: ${JWT_SECRET:change-me}
+  expiration: 86400000
 
 # 工作流配置
-workflow:
-  url: http://your-workflow-server:port/api/process
-  timeout: 480
+checkai:
+  workflow:
+    api-url: ${CHECKAI_WORKFLOW_API_URL:https://api.coze.cn/v3/chat}
+    bot-id: ${CHECKAI_WORKFLOW_BOT_ID:}
+    authorization: ${CHECKAI_WORKFLOW_AUTHORIZATION:}
+  langchainAgentApi: ${LANGCHAIN_AGENT_API:http://localhost:5000/api/process}
 
-# 跨域配置
-cors:
-  allowed-origins: http://localhost:5173,http://checkbyai.free.idcfengye.com
 ```
 
 ### 4. 前端配置
 
-1. 修改前端API地址配置：
+1. 配置前端API地址（通过环境变量）：
 
 ```javascript
 // check_ai_web/src/config/api.js
-export const API_BASE_URL = 'http://checkbyai.free.idcfengye.com';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 ```
+
+本地示例：`check_ai_web/env.example`（复制为你本机 `.env.local` 使用）
 
 ### 5. 构建和运行
 
@@ -317,3 +317,10 @@ http://localhost:8080/swagger-ui.html
 ## 许可证
 
 本项目采用MIT许可证。详见LICENSE文件。
+
+## 优化与演进文档
+
+- `docs/项目优化文档.md`
+- `docs/RabbitMQ引入指南.md`
+- `docs/Redis热点缓存优化方案.md`
+- `docs/SQL表结构与索引优化建议.md`

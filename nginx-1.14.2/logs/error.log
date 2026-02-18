@@ -52,3 +52,5 @@
 2026/02/04 14:53:43 [error] 32352#23796: *36 CreateFile() "F:\GitRepo\CheckByAi\nginx-1.14.2/html/favicon.ico" failed (2: The system cannot find the file specified), client: 127.0.0.1, server: localhost, request: "GET /favicon.ico HTTP/1.1", host: "104451au3eh17.vicp.fun", referrer: "http://104451au3eh17.vicp.fun/main"
 2026/02/04 14:53:46 [error] 32352#23796: *36 CreateFile() "F:\GitRepo\CheckByAi\nginx-1.14.2/html/main" failed (2: The system cannot find the file specified), client: 127.0.0.1, server: localhost, request: "GET /main HTTP/1.1", host: "104451au3eh17.vicp.fun"
 2026/02/04 16:08:53 [error] 32352#23796: *40 CreateFile() "F:\GitRepo\CheckByAi\nginx-1.14.2/html/logistics" failed (2: The system cannot find the file specified), client: 127.0.0.1, server: localhost, request: "GET /logistics HTTP/1.1", host: "104451au3eh17.vicp.fun"
+2026/02/04 22:03:00 [alert] 14584#11224: the event "ngx_master_14584" was not signaled for 5s
+2026/02/04 22:03:00 [alert] 14584#11224: could not respawn worker

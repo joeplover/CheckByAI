@@ -1,0 +1,65 @@
+create table callback_data
+(
+    id               varchar(36)  null,
+    task_id          varchar(100) null,
+    original_task_id varchar(36)  null,
+    user_id          varchar(36)  null,
+    data             text         null,
+    receive_time     datetime     null
+);
+
+create table logistics_order
+(
+    id                         bigint auto_increment comment '主键ID'
+        primary key,
+    waybill_no                 varchar(50)    not null comment '运单号',
+    source_order_no            varchar(50)    null comment '来源货单',
+    loading_district           varchar(50)    null comment '装货地县区',
+    loading_address            text           null comment '装货地址',
+    unloading_district         varchar(50)    null comment '卸货地县区',
+    unloading_address          text           null comment '卸货地址',
+    loading_weight             decimal(10, 4) null comment '装货重量（吨）',
+    unloading_weight           decimal(10, 4) null comment '卸货重量（吨）',
+    transport_plate_no         varchar(20)    null comment '运输车牌号',
+    cargo_main_type            varchar(30)    null comment '货物大类型',
+    cargo_sub_type             varchar(30)    null comment '货物小类型',
+    loading_time               datetime       null comment '装货时间',
+    unloading_time             datetime       null comment '卸货时间',
+    loading_weight_bill_urls   text           null comment '装货磅单地址（逗号分隔URL）',
+    unloading_weight_bill_urls text           null comment '卸货磅单地址（逗号分隔URL）',
+    constraint waybill_no
+        unique (waybill_no)
+)
+    comment '物流运单表' charset = utf8mb4;
+
+create table task
+(
+    id               varchar(36)  null,
+    task_id          varchar(100) null,
+    original_task_id varchar(36)  null,
+    user_id          varchar(36)  null,
+    batch_number     int          null,
+    total_batches    int          null,
+    status           varchar(20)  null,
+    data_content     text         null,
+    create_time      datetime     null,
+    update_time      datetime     null,
+    timeout_time     datetime     null,
+    progress         int          null,
+    total_progress   int          null
+);
+
+create table user
+(
+    id              varchar(36)  null,
+    username        varchar(50)  null,
+    password        varchar(100) null,
+    nickname        varchar(50)  null,
+    email           varchar(100) null,
+    phone           varchar(20)  null,
+    status          tinyint      null,
+    create_time     datetime     null,
+    update_time     datetime     null,
+    last_login_time datetime     null
+);
+

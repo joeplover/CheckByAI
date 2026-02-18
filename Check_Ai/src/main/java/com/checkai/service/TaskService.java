@@ -6,6 +6,8 @@ import com.checkai.mapper.TaskMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -39,6 +41,7 @@ public class TaskService {
      * @param userId 用户ID
      * @return 任务列表
      */
+    @Cacheable(cacheNames = "tasksByUser", key = "#userId")
     public List<Task> getTasksByUserId(String userId) {
         QueryWrapper<Task> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("user_id", userId)
@@ -72,9 +75,11 @@ public class TaskService {
      * @param taskId 任务ID
      * @param userId 用户ID
      */
+    @CacheEvict(cacheNames = "tasksByUser", key = "#userId")
     public void deleteTask(String taskId, String userId) {
         QueryWrapper<Task> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("id", taskId)
+        // 这里的taskId是业务task_id（API路径也是 /task/{taskId}），不是主键id
+        queryWrapper.eq("task_id", taskId)
                 .eq("user_id", userId);
         taskMapper.delete(queryWrapper);
     }

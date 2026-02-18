@@ -1,0 +1,17 @@
+# ---- Backend secrets / local overrides ----
+# 不要提交包含真实Token/密码的本机配置
+Check_Ai/src/main/resources/application-local.yml
+Check_Ai/src/main/resources/application-local.yaml
+Check_Ai/src/main/resources/application-local.properties
+
+# ---- Backend build outputs ----
+Check_Ai/target/
+
+# ---- OS / IDE ----
+.idea/
+.vscode/
+*.iml
+*.log
+.DS_Store
+
+

@@ -3,6 +3,7 @@ F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\entity\LogisticsOrder.ja
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\mapper\UserMapper.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\service\WorkflowService.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\config\CorsConfig.java
+F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\config\PasswordConfig.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\entity\Task.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\dto\ExcelData.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\service\MysqlMonitorService.java

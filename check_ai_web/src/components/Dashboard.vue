@@ -44,7 +44,7 @@ const fetchDashboardStats = async () => {
       }
     });
     
-    if (ordersResponse.data.code === 0) {
+    if (ordersResponse.data && ordersResponse.data.code === 0) {
       const orders = ordersResponse.data.data;
       stats.value.totalOrders = orders.length;
       stats.value.pendingOrders = orders.length;
@@ -62,8 +62,9 @@ const fetchDashboardStats = async () => {
       }
     });
     
-    if (tasksResponse.data.code === 0) {
-      recentTasks.value = tasksResponse.data.tasks.slice(0, 5);
+    // /api/tasks 后端返回：{ success: true, tasks: [...] }
+    if (tasksResponse.data && tasksResponse.data.success === true) {
+      recentTasks.value = (tasksResponse.data.tasks || []).slice(0, 5);
     } else {
       recentTasks.value = [];
     }

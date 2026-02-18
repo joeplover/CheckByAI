@@ -261,7 +261,7 @@ public class ApiController {
 
             // 删除任务及其相关数据
             // 1. 删除任务相关的回调数据
-            callbackService.deleteByTaskId(taskId);
+            callbackService.deleteByTaskId(taskId, userId);
             // 2. 删除任务
             taskService.deleteTask(taskId, userId);
 

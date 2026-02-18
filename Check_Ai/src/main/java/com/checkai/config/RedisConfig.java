@@ -25,6 +25,7 @@ public class RedisConfig {
         //设置key的序列化方式为String
         //使用StringRedisSeerializer确保key以字符串形式存储
         redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer());
         //设置hash key的序列化方式为String
         redisTemplate.setHashKeySerializer(new StringRedisSerializer());
 

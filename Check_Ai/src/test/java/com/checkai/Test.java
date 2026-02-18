@@ -2,6 +2,7 @@ package com.checkai;
 
 import com.checkai.entity.User;
 import com.checkai.util.RedisUtil;
+import org.junit.jupiter.api.Disabled;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 @SpringBootTest
+@Disabled("集成测试：依赖外部MySQL/Redis环境，默认在CI/本地不执行。需要时手动开启。")
 public class Test {
     
     @Autowired

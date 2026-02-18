@@ -1,5 +1,6 @@
 // API地址配置文件
-export const API_BASE_URL = 'http://104451au3eh17.vicp.fun:48737';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 // API路径枚举
 export const API_PATHS = {

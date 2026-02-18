@@ -6,6 +6,10 @@ import com.checkai.mapper.CallbackDataMapper;
 import com.checkai.mapper.TaskMapper;
 import com.checkai.util.ShortIdUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,6 +28,9 @@ public class CallbackService {
 
     @Autowired
     private TaskMapper taskMapper;
+
+    @Autowired(required = false)
+    private CacheManager cacheManager;
 
     private static final Pattern BATCH_TASK_ID_PATTERN = Pattern.compile("^(.*?)_batch_(\\d+)$");
 
@@ -89,6 +96,7 @@ public class CallbackService {
                 callbackDataMapper.insert(callbackData);
                 
                 System.out.println("批次处理失败 - originalTaskId: " + originalTaskId + ", batchNumber: " + batchNumber);
+                evictTaskCaches(userId, originalTaskId);
                 return;
             }
 
@@ -252,6 +260,9 @@ public class CallbackService {
                 taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", originalTaskId));
             }
 
+            // 回调数据写入后，驱逐缓存（任务列表、任务结果）
+            evictTaskCaches(userId, originalTaskId);
+
         } catch (Exception e) {
             // 处理异常
             System.out.println("处理回调数据时发生异常: " + e.getMessage());
@@ -279,6 +290,7 @@ public class CallbackService {
      * @param userId 用户ID
      * @return 任务结果列表
      */
+    @Cacheable(cacheNames = "taskResultsByUserAndTask", key = "#userId + ':' + #taskId")
     public List<CallbackData> getTaskResultsByTaskIdAndUserId(String taskId, String userId) {
         // 首先验证该任务是否属于当前用户
         Task task = taskMapper.selectOne(
@@ -319,6 +331,7 @@ public class CallbackService {
      * @param userId 用户ID
      * @return 任务结果列表
      */
+    @Cacheable(cacheNames = "originalTaskResultsByUserAndOriginal", key = "#userId + ':' + #originalTaskId")
     public List<CallbackData> getTaskResultsByOriginalTaskIdAndUserId(String originalTaskId, String userId) {
         // 首先验证该原始任务是否属于当前用户
         Task originalTask = taskMapper.selectOne(
@@ -364,7 +377,27 @@ public class CallbackService {
      * 根据任务ID删除回调数据
      * @param taskId 任务ID
      */
-    public void deleteByTaskId(String taskId) {
+    @CacheEvict(cacheNames = "taskResultsByUserAndTask", key = "#userId + ':' + #taskId", condition = "#userId != null")
+    public void deleteByTaskId(String taskId, String userId) {
         callbackDataMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CallbackData>().eq("task_id", taskId));
+        evictTaskCaches(userId, taskId);
+    }
+
+    private void evictTaskCaches(String userId, String taskId) {
+        if (cacheManager == null || userId == null || taskId == null) {
+            return;
+        }
+        Cache tasksByUser = cacheManager.getCache("tasksByUser");
+        if (tasksByUser != null) {
+            tasksByUser.evict(userId);
+        }
+        Cache taskResults = cacheManager.getCache("taskResultsByUserAndTask");
+        if (taskResults != null) {
+            taskResults.evict(userId + ":" + taskId);
+        }
+        Cache originalResults = cacheManager.getCache("originalTaskResultsByUserAndOriginal");
+        if (originalResults != null) {
+            originalResults.evict(userId + ":" + taskId);
+        }
     }
 }
