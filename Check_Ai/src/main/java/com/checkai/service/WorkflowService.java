@@ -1,6 +1,8 @@
 package com.checkai.service;
 
+import com.checkai.config.RabbitMQConfig;
 import com.checkai.dto.ExcelData;
+import com.checkai.dto.TaskProcessMessage;
 import com.checkai.dto.WorkflowRequest;
 import com.checkai.entity.Task;
 import com.checkai.mapper.TaskMapper;
@@ -10,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -55,22 +58,26 @@ public class WorkflowService {
 
     private static final int BATCH_SIZE = 8;
 
-    public String processExcelData(ExcelData excelData, String userId) throws Exception {
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    /**
+     * 创建任务并发送到 RabbitMQ，由异步消费者触发实际工作流处理
+     */
+    public String createTaskAndSendToQueue(ExcelData excelData, String userId) throws Exception {
         // 生成任务ID
         String taskId = ShortIdUtil.generateShortId(); // 生成8位短ID
 
-        // 检查数据行数并拆分批次
+        // 检查数据行数并规范化列表长度，避免行数不一致导致数据错位
         int totalRows = excelData.getExcelBase().size();
-        // 规范化三份数据的长度，避免excel_base / excel_pull / excel_push 行数不一致导致“某一行在工作流侧被错位/丢失”
         normalizeExcelLists(excelData, totalRows);
 
         int totalBatches = (int) Math.ceil((double) totalRows / BATCH_SIZE);
-        List<ExcelData> splitDataList = splitExcelData(excelData);
 
         // 设置超时时间（当前时间+8分钟）
         Date currentTime = new Date();
         Date timeoutTime = new Date(currentTime.getTime() + 8 * 60 * 1000);
-        
+
         // 保存任务到数据库
         Task task = new Task();
         task.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
@@ -88,6 +95,39 @@ public class WorkflowService {
         task.setTotalProgress(totalBatches);
         taskMapper.insert(task);
 
+        // 构建并发送 MQ 消息
+        TaskProcessMessage message = new TaskProcessMessage();
+        String messageId = ShortIdUtil.generateShortId();
+        message.setMessageId(messageId);
+        message.setTaskId(taskId);
+        message.setUserId(userId);
+        message.setExcelData(excelData);
+        message.setCreatedAt(currentTime);
+        message.setTraceId(messageId);
+
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.CHECKAI_TASK_EXCHANGE,
+                RabbitMQConfig.ROUTING_KEY_TASK_PROCESS,
+                message
+        );
+
+        return taskId;
+    }
+
+    /**
+     * 实际的 Excel 任务处理逻辑：拆分批次并调用外部工作流
+     */
+    public void processExcelTask(ExcelData excelData, String taskId) throws Exception {
+        if (excelData == null || excelData.getExcelBase() == null || excelData.getExcelBase().isEmpty()) {
+            return;
+        }
+
+        int totalRows = excelData.getExcelBase().size();
+        // 规范化三份数据的长度，避免excel_base / excel_pull / excel_push 行数不一致导致“某一行在工作流侧被错位/丢失”
+        normalizeExcelLists(excelData, totalRows);
+
+        List<ExcelData> splitDataList = splitExcelData(excelData);
+
         // 顺序发送请求（一个一个发送，等待回调成功后再发送下一个）
         for (int i = 0; i < splitDataList.size(); i++) {
             ExcelData splitData = splitDataList.get(i);
@@ -97,7 +137,7 @@ public class WorkflowService {
             int retryCount = 0;
             int maxRetries = 3;
             boolean sendSuccess = false;
-            
+
             while (!sendSuccess && retryCount < maxRetries) {
                 try {
                     // 发送请求到工作流
@@ -107,7 +147,7 @@ public class WorkflowService {
                 } catch (Exception e) {
                     retryCount++;
                     System.out.println("批次发送失败，正在重试 - taskId: " + taskId + ", batchNumber: " + (i + 1) + ", 重试次数: " + retryCount + ", 错误: " + e.getMessage());
-                    
+
                     // 如果是最后一次重试，更新任务状态为失败
                     if (retryCount >= maxRetries) {
                         Task updateTask = new Task();
@@ -116,7 +156,7 @@ public class WorkflowService {
                         taskMapper.update(updateTask, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>().eq("task_id", taskId));
                         throw new Exception("批次发送失败，已达到最大重试次数 - batchNumber: " + (i + 1) + ", 错误: " + e.getMessage());
                     }
-                    
+
                     // 等待3秒后重试
                     try {
                         Thread.sleep(3000);
@@ -125,7 +165,7 @@ public class WorkflowService {
                     }
                 }
             }
-            
+
             // 等待2秒，确保请求按顺序处理
             try {
                 Thread.sleep(2000);
@@ -133,8 +173,6 @@ public class WorkflowService {
                 Thread.currentThread().interrupt();
             }
         }
-
-        return taskId;
     }
 
     private List<ExcelData> splitExcelData(ExcelData excelData) {

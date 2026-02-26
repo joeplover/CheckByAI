@@ -44,8 +44,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:192.168.91.132}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:admin123}
     virtual-host: ${RABBITMQ_VHOST:/}
   servlet:
     multipart:

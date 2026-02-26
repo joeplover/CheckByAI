@@ -55,11 +55,12 @@ public class ApiController {
             if (userId == null) {
                 userId = "test-user";
             }
-            String taskId = workflowService.processExcelData(excelData, userId);
+            // 创建任务并通过 RabbitMQ 异步触发实际处理
+            String taskId = workflowService.createTaskAndSendToQueue(excelData, userId);
 
             result.put("success", true);
             result.put("taskId", taskId);
-            result.put("message", "文件上传成功，任务已开始处理");
+            result.put("message", "文件上传成功，任务已进入队列等待处理");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
