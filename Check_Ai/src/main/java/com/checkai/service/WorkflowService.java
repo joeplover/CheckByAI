@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpStatusCodeException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -40,6 +42,9 @@ public class WorkflowService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private IdempotencyService idempotencyService;
 
     @Value("${checkai.workflow.api-url}")
     private String workflowApiUrl;
@@ -65,53 +70,76 @@ public class WorkflowService {
      * 创建任务并发送到 RabbitMQ，由异步消费者触发实际工作流处理
      */
     public String createTaskAndSendToQueue(ExcelData excelData, String userId) throws Exception {
-        // 生成任务ID
-        String taskId = ShortIdUtil.generateShortId(); // 生成8位短ID
-
-        // 检查数据行数并规范化列表长度，避免行数不一致导致数据错位
-        int totalRows = excelData.getExcelBase().size();
-        normalizeExcelLists(excelData, totalRows);
-
-        int totalBatches = (int) Math.ceil((double) totalRows / BATCH_SIZE);
-
-        // 设置超时时间（当前时间+8分钟）
-        Date currentTime = new Date();
-        Date timeoutTime = new Date(currentTime.getTime() + 8 * 60 * 1000);
-
-        // 保存任务到数据库
-        Task task = new Task();
-        task.setId(ShortIdUtil.generateShortId()); // 生成8位短ID
-        task.setTaskId(taskId);
-        task.setOriginalTaskId(taskId);
-        task.setUserId(userId);
-        task.setBatchNumber(0);
-        task.setTotalBatches(totalBatches);
-        task.setStatus("PENDING");
-        task.setDataContent(objectMapper.writeValueAsString(excelData));
-        task.setCreateTime(currentTime);
-        task.setUpdateTime(currentTime);
-        task.setTimeoutTime(timeoutTime);
-        task.setProgress(0);
-        task.setTotalProgress(totalBatches);
-        taskMapper.insert(task);
-
-        // 构建并发送 MQ 消息
-        TaskProcessMessage message = new TaskProcessMessage();
-        String messageId = ShortIdUtil.generateShortId();
-        message.setMessageId(messageId);
-        message.setTaskId(taskId);
-        message.setUserId(userId);
-        message.setExcelData(excelData);
-        message.setCreatedAt(currentTime);
-        message.setTraceId(messageId);
-
-        rabbitTemplate.convertAndSend(
-                RabbitMQConfig.CHECKAI_TASK_EXCHANGE,
-                RabbitMQConfig.ROUTING_KEY_TASK_PROCESS,
-                message
-        );
-
-        return taskId;
+        String contentJson = objectMapper.writeValueAsString(excelData);
+        String contentHash = generateContentHash(contentJson);
+        
+        if (!idempotencyService.tryAcquireTaskLock(userId, contentHash)) {
+            logger.warn("检测到重复任务提交 - userId={}", userId);
+            throw new IllegalStateException("检测到重复任务提交，请稍后再试");
+        }
+        
+        try {
+            String taskId = ShortIdUtil.generateShortId();
+            
+            int totalRows = excelData.getExcelBase().size();
+            normalizeExcelLists(excelData, totalRows);
+            
+            int totalBatches = (int) Math.ceil((double) totalRows / BATCH_SIZE);
+            
+            Date currentTime = new Date();
+            Date timeoutTime = new Date(currentTime.getTime() + 8 * 60 * 1000);
+            
+            Task task = new Task();
+            task.setId(ShortIdUtil.generateShortId());
+            task.setTaskId(taskId);
+            task.setOriginalTaskId(taskId);
+            task.setUserId(userId);
+            task.setBatchNumber(0);
+            task.setTotalBatches(totalBatches);
+            task.setStatus("PENDING");
+            task.setDataContent(contentJson);
+            task.setCreateTime(currentTime);
+            task.setUpdateTime(currentTime);
+            task.setTimeoutTime(timeoutTime);
+            task.setProgress(0);
+            task.setTotalProgress(totalBatches);
+            taskMapper.insert(task);
+            
+            TaskProcessMessage message = new TaskProcessMessage();
+            String messageId = ShortIdUtil.generateShortId();
+            message.setMessageId(messageId);
+            message.setTaskId(taskId);
+            message.setUserId(userId);
+            message.setExcelData(excelData);
+            message.setCreatedAt(currentTime);
+            message.setTraceId(messageId);
+            
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.CHECKAI_TASK_EXCHANGE,
+                    RabbitMQConfig.ROUTING_KEY_TASK_PROCESS,
+                    message
+            );
+            
+            logger.info("任务创建成功 - taskId={}, userId={}, messageId={}", taskId, userId, messageId);
+            return taskId;
+        } catch (Exception e) {
+            idempotencyService.releaseTaskLock(userId, contentHash);
+            throw e;
+        }
+    }
+    
+    private String generateContentHash(String content) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(content.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return String.valueOf(content.hashCode());
+        }
     }
 
     /**
@@ -277,13 +305,13 @@ public class WorkflowService {
         }
 
         // 仅输出脱敏信息，便于排查401/403
-        logger.info("发送工作流请求：url={}, workflowId={}, authPrefix={}, authLen={}",
-                workflowApiUrl, workflowId, auth.startsWith("Bearer ") ? "Bearer" : "OTHER", auth.length());
-        // IDEA控制台有时会漏掉logger输出，这里补一份stdout（不打印token明文）
+        // IDEA控制台有时会漏掉logger输出，这里先打印stdout（不打印token明文）
         System.out.println("发送工作流请求: url=" + workflowApiUrl
                 + ", workflowId=" + workflowId
                 + ", authPrefix=" + (auth.startsWith("Bearer ") ? "Bearer" : "OTHER")
                 + ", authLen=" + auth.length());
+        logger.info("发送工作流请求：url={}, workflowId={}, authPrefix={}, authLen={}",
+                workflowApiUrl, workflowId, auth.startsWith("Bearer ") ? "Bearer" : "OTHER", auth.length());
 
         // 构建请求数据
         Map<String, Object> requestData = new HashMap<>();

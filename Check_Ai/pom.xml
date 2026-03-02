@@ -53,6 +53,12 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Caffeine Local Cache -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- SpringDoc OpenAPI (替代Swagger) -->
         <dependency>
             <groupId>org.springdoc</groupId>

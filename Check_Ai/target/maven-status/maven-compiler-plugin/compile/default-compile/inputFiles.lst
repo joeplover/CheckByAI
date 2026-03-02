@@ -1,11 +1,14 @@
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\entity\User.java
+F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\cache\CompositeCache.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\entity\LogisticsOrder.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\mapper\UserMapper.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\service\WorkflowService.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\config\CorsConfig.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\config\PasswordConfig.java
+F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\config\ThreadPoolConfig.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\entity\Task.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\dto\ExcelData.java
+F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\cache\CompositeCacheManager.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\service\MysqlMonitorService.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\service\CallbackService.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\entity\Result.java
@@ -15,6 +18,7 @@ F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\config\WebConfig.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\util\ShortIdUtil.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\dto\RegisterRequest.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\dto\WorkflowRequest.java
+F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\service\IdempotencyService.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\interceptor\JwtInterceptor.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\util\MD5Util.java
 F:\GitRepo\CheckByAi\Check_Ai\src\main\java\com\checkai\dto\LoginRequest.java

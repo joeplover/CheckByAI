@@ -1,7 +1,9 @@
+com\checkai\cache\CompositeCache.class
 com\checkai\entity\LogisticsOrder.class
 com\checkai\controller\AuthController.class
 com\checkai\entity\User.class
 com\checkai\mapper\CallbackDataMapper.class
+com\checkai\service\IdempotencyService.class
 com\checkai\dto\LoginResponse.class
 com\checkai\service\ExcelService.class
 com\checkai\scheduler\TaskTimeoutScheduler.class
@@ -15,6 +17,7 @@ com\checkai\config\MybatisPlusConfig.class
 com\checkai\mapper\TaskMapper.class
 com\checkai\service\MysqlMonitorService.class
 com\checkai\dto\RegisterRequest.class
+com\checkai\config\ThreadPoolConfig.class
 com\checkai\entity\Task.class
 com\checkai\service\AuthService.class
 com\checkai\entity\CallbackData.class
@@ -34,6 +37,7 @@ com\checkai\service\LoginsticsService.class
 com\checkai\util\RedisUtil.class
 com\checkai\service\TaskService.class
 com\checkai\util\CurrentUserHolder.class
+com\checkai\cache\CompositeCacheManager.class
 com\checkai\config\CacheConfig.class
 com\checkai\util\JwtUtil.class
 com\checkai\util\ShortIdUtil.class

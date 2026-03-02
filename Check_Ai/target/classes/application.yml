@@ -47,6 +47,12 @@ spring:
     username: ${RABBITMQ_USERNAME:admin}
     password: ${RABBITMQ_PASSWORD:admin123}
     virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        concurrency: 3
+        max-concurrency: 10
+        prefetch: 1
+        acknowledge-mode: auto
   servlet:
     multipart:
       max-file-size: 10MB
@@ -58,6 +64,11 @@ mybatis-plus:
 
 server:
   port: 8080
+
+cache:
+  caffeine:
+    expire-after-write: ${CAFFEINE_EXPIRE:300}
+    maximum-size: ${CAFFEINE_MAX_SIZE:1000}
 
 jwt:
   secret: ${JWT_SECRET:change-me-to-a-strong-secret-key-at-least-32-bytes}
