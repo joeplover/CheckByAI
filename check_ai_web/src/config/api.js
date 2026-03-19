@@ -16,7 +16,14 @@ export const API_PATHS = {
   
   // 本地数据相关
   GET_LOGISTICS_LIST: '/logistics/list',
-  SUBMIT_LOCAL_DATA: '/api/submit-local-data'
+  SUBMIT_LOCAL_DATA: '/api/submit-local-data',
+  
+  // AI智能问答相关
+  AI_CHAT: '/ai/chat',
+  AI_CHAT_RAG: '/ai/chat/rag',
+  AI_DOCUMENT_UPLOAD: '/ai/documents/upload',
+  AI_DOCUMENT_SEARCH: '/ai/documents/search',
+  AI_HISTORY: '/ai/history'
 };
 
 // 构建完整API地址

@@ -6,6 +6,7 @@ import Dashboard from '../components/Dashboard.vue';
 import LogisticsManagement from '../components/LogisticsManagement.vue';
 import DataMonitor from '../components/DataMonitor.vue';
 import FileUpload from '../components/FileUpload.vue';
+import AiAssistant from '../components/AiAssistant.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -67,6 +68,14 @@ const router = createRouter({
           component: FileUpload,
           meta: {
             title: '文件处理 - 智慧物流系统'
+          }
+        },
+        {
+          path: 'ai-assistant',
+          name: 'ai-assistant',
+          component: AiAssistant,
+          meta: {
+            title: 'AI智能问答 - 智慧物流系统'
           }
         }
       ]

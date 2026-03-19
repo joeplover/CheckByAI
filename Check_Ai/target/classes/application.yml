@@ -79,9 +79,35 @@ swagger:
 
 checkai:
   workflow:
-    # Coze 工作流接口（本项目当前代码实际调用的是 workflows/chat）
     api-url: ${CHECKAI_WORKFLOW_API_URL:https://api.coze.cn/v1/workflows/chat}
     workflow-id: ${CHECKAI_WORKFLOW_ID:7595443144305852425}
     bot-id: ${CHECKAI_WORKFLOW_BOT_ID:}
     authorization: ${CHECKAI_WORKFLOW_AUTHORIZATION:}
   langchainAgentApi: ${LANGCHAIN_AGENT_API:http://localhost:5000/api/process}
+  
+  # LangChain4j AI Assistant 配置
+  ai:
+    # DeepSeek Chat LLM 配置
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:sk-5a4f1bf94ff74aaa984e5a0001867a6f}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      model: ${DEEPSEEK_MODEL:deepseek-chat}
+    
+    # Ollama Embedding 配置
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding-model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+    
+    # Milvus 向量数据库配置
+    milvus:
+      host: ${MILVUS_HOST:192.168.8.128}
+      port: ${MILVUS_PORT:19530}
+      collection-name: ${MILVUS_COLLECTION:checkai_documents}
+      database: ${MILVUS_DATABASE:default}
+    
+    # RAG 配置
+    rag:
+      max-segment-size: ${RAG_MAX_SEGMENT_SIZE:500}
+      max-overlap-size: ${RAG_MAX_OVERLAP_SIZE:100}
+      max-results: ${RAG_MAX_RESULTS:5}
+      min-score: ${RAG_MIN_SCORE:0.7}

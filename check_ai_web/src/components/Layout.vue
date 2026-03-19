@@ -12,7 +12,8 @@ const menuItems = [
   { path: '/dashboard', icon: '📊', label: '仪表盘' },
   { path: '/logistics', icon: '📦', label: '物流管理' },
   { path: '/main', icon: '📁', label: '文件处理' },
-  { path: '/monitor', icon: '📈', label: '数据监控' }
+  { path: '/monitor', icon: '📈', label: '数据监控' },
+  { path: '/ai-assistant', icon: '🤖', label: 'AI问答' }
 ];
 
 const isActive = (path) => route.path === path;
