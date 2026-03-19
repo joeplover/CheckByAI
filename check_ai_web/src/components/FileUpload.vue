@@ -3,15 +3,39 @@
     <div class="main-content">
       <div class="header">
         <h1>智能文件处理</h1>
-        <p class="description">上传Excel文件，选择处理方式进行智能分析</p>
+        <p class="description">上传Excel文件或选择本地数据，选择处理方式进行智能分析</p>
+      </div>
+      
+      <!-- 数据来源切换 -->
+      <div class="data-source-switch">
+        <div class="switch-container">
+          <label class="switch-label">
+            <input type="checkbox" v-model="useLocalData" class="switch-input">
+            <span class="switch-slider"></span>
+          </label>
+          <div class="mode-labels">
+            <span :class="['mode-label', { active: !useLocalData }]">上传Excel文件</span>
+            <span :class="['mode-label', { active: useLocalData }]">选择本地数据</span>
+          </div>
+        </div>
+        <div class="mode-description">
+          <p v-if="!useLocalData">上传Excel文件进行处理</p>
+          <p v-else>从本地数据库中选择已存储的物流订单数据</p>
+        </div>
       </div>
       
       <!-- 处理方式切换开关 -->
       <div class="processing-mode-switch">
         <div class="switch-container">
           <label class="switch-label">
-            <input type="checkbox" v-model="useLangChain" class="switch-input">
-            <span class="switch-slider"></span>
+            <input 
+              type="checkbox" 
+              v-model="useLangChain" 
+              class="switch-input"
+              :disabled="useLocalData"
+              @change="handleModeChange"
+            >
+            <span class="switch-slider" :class="{ 'disabled': useLocalData }"></span>
           </label>
           <div class="mode-labels">
             <span :class="['mode-label', { active: !useLangChain }]">Coze工作流</span>
@@ -19,7 +43,8 @@
           </div>
         </div>
         <div class="mode-description">
-          <p v-if="!useLangChain">使用Coze工作流进行文件处理，适合标准任务流程</p>
+          <p v-if="useLocalData" class="warning-text">本地数据模式仅支持 Coze 工作流</p>
+          <p v-else-if="!useLangChain">使用Coze工作流进行文件处理，适合标准任务流程</p>
           <p v-else>使用LangChain Agent进行智能分析，适合复杂任务处理</p>
         </div>
       </div>
@@ -27,7 +52,8 @@
       <div class="grid-layout">
         <!-- 左侧：文件上传区域 -->
         <div class="left-section">
-          <div class="upload-section">
+          <!-- 文件上传区域 -->
+          <div class="upload-section" v-if="!useLocalData">
             <div class="upload-card">
               <div class="card-header">
                 <h2>文件上传</h2>
@@ -56,6 +82,144 @@
             </div>
           </div>
           
+          <!-- 本地数据选择区域 -->
+          <div class="local-data-section" v-else>
+            <div class="local-data-card">
+              <div class="card-header">
+                <h2>本地数据选择</h2>
+                <div class="header-actions">
+                  <button @click="loadLocalData" class="btn btn-sm btn-outline" :disabled="isLoadingLocalData">
+                    <span v-if="isLoadingLocalData">加载中...</span>
+                    <span v-else><span class="icon">🔄</span> 刷新</span>
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 搜索框 -->
+              <div class="local-search-box">
+                <input 
+                  v-model="localSearchKeyword" 
+                  type="text" 
+                  placeholder="搜索运单号、车牌号、地址..."
+                  class="local-search-input"
+                  @keyup.enter="searchLocalData"
+                >
+                <button @click="searchLocalData" class="btn btn-search-local">
+                  <span class="icon">🔍</span> 搜索
+                </button>
+                <button v-if="localSearchKeyword" @click="clearLocalSearch" class="btn btn-clear">
+                  清除
+                </button>
+              </div>
+              
+              <div class="local-data-content" v-if="localDataList.length > 0">
+                <div class="select-all-bar">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="selectAllLocal" @change="toggleSelectAll">
+                    <span>全选</span>
+                  </label>
+                  <span 
+                    class="selected-count clickable" 
+                    :class="{ 'has-selection': selectedLocalIds.length > 0 }"
+                    @click="selectedLocalIds.length > 0 && (showSelectedPanel = !showSelectedPanel)"
+                  >
+                    已选择 {{ selectedLocalIds.length }} 条数据 (共 {{ localDataList.length }} 条)
+                    <span v-if="selectedLocalIds.length > 0" class="toggle-icon">{{ showSelectedPanel ? '▲' : '▼' }}</span>
+                  </span>
+                </div>
+                
+                <!-- 已选择数据浮动面板 -->
+                <transition name="slide-fade">
+                  <div class="selected-panel" v-if="showSelectedPanel && selectedLocalIds.length > 0">
+                    <div class="selected-panel-header">
+                      <h4>已选择的数据 ({{ selectedLocalIds.length }}条)</h4>
+                      <button @click="clearAllSelected" class="btn btn-sm btn-danger">清空全部</button>
+                    </div>
+                    <div class="selected-panel-content">
+                      <div 
+                        v-for="item in selectedItemsData" 
+                        :key="item.id" 
+                        class="selected-item-card"
+                      >
+                        <div class="selected-item-info">
+                          <div class="item-main">
+                            <span class="waybill-no">{{ item.waybillNo || '无运单号' }}</span>
+                            <span class="plate-no">{{ item.transportPlateNo || '' }}</span>
+                          </div>
+                          <div class="item-address" v-if="item.loadingAddress || item.unloadingAddress">
+                            <span class="address-item" v-if="item.loadingAddress">
+                              <strong>装:</strong>{{ item.loadingAddress }}
+                            </span>
+                            <span class="address-item" v-if="item.unloadingAddress">
+                              <strong>卸:</strong>{{ item.unloadingAddress }}
+                            </span>
+                          </div>
+                        </div>
+                        <button @click="removeSelectedItem(item.id)" class="btn-remove">×</button>
+                      </div>
+                    </div>
+                  </div>
+                </transition>
+                
+                <div class="local-data-list">
+                  <div 
+                    v-for="item in localDataList" 
+                    :key="item.id" 
+                    class="local-data-item"
+                    :class="{ 'selected': selectedLocalIds.includes(item.id) }"
+                    @click="toggleSelectItem(item.id)"
+                  >
+                    <div class="item-checkbox">
+                      <input 
+                        type="checkbox" 
+                        :checked="selectedLocalIds.includes(item.id)" 
+                        @change="toggleSelectItem(item.id)"
+                        @click.stop
+                      >
+                    </div>
+                    <div class="item-content">
+                      <div class="item-header">
+                        <span class="waybill-no">{{ item.waybillNo || '无运单号' }}</span>
+                        <span class="source-order">{{ item.sourceOrderNo || '' }}</span>
+                      </div>
+                      <div class="item-details">
+                        <span class="detail-item">
+                          <strong>装货:</strong> {{ item.loadingAddress || '-' }}
+                        </span>
+                        <span class="detail-item">
+                          <strong>卸货:</strong> {{ item.unloadingAddress || '-' }}
+                        </span>
+                      </div>
+                      <div class="item-footer">
+                        <span class="plate-no">{{ item.transportPlateNo || '' }}</span>
+                        <span class="cargo-type">{{ item.cargoMainType || '' }} {{ item.cargoSubType || '' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="submit-actions">
+                  <button @click="submitLocalData" class="btn btn-success btn-lg" :disabled="isUploading || selectedLocalIds.length === 0">
+                    <span v-if="isUploading">处理中...</span>
+                    <span v-else><span class="icon">🚀</span> 提交选中数据 ({{ selectedLocalIds.length }}条)</span>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="empty-local-data" v-else-if="!isLoadingLocalData">
+                <div class="empty-icon">📦</div>
+                <p v-if="localSearchKeyword">未找到匹配"{{ localSearchKeyword }}"的数据</p>
+                <p v-else>暂无本地数据</p>
+                <p class="hint" v-if="!localSearchKeyword">请先上传Excel文件导入数据</p>
+              </div>
+              
+              <div class="loading-local-data" v-else>
+                <div class="loading-icon">⏳</div>
+                <p>加载本地数据中...</p>
+              </div>
+            </div>
+          </div>
+          
           <div class="result-section" v-if="taskId">
             <div class="result-card">
               <div class="card-header">
@@ -78,7 +242,7 @@
               </div>
               <div class="result-actions">
                 <button @click="resetUpload" class="btn btn-outline">
-                  <span class="icon">🔄</span> 上传新文件
+                  <span class="icon">🔄</span> 重新选择
                 </button>
                 <button @click="refreshTasks" class="btn btn-primary">
                   <span class="icon">🔄</span> 刷新任务列表
@@ -91,9 +255,11 @@
             <div class="tips-card">
               <h3>📝 使用提示</h3>
               <ul>
-                <li>请确保Excel文件格式正确，包含必要的列信息</li>
-                <li>文件大小不要超过10MB，否则可能上传失败</li>
-                <li>处理时间取决于文件大小和网络速度，请耐心等待</li>
+                <li v-if="!useLocalData">请确保Excel文件格式正确，包含必要的列信息</li>
+                <li v-if="!useLocalData">文件大小不要超过10MB，否则可能上传失败</li>
+                <li v-if="useLocalData">选择本地数据后，点击提交按钮进行处理</li>
+                <li v-if="useLocalData">可以多选数据批量提交</li>
+                <li>处理时间取决于数据量大小和网络速度，请耐心等待</li>
                 <li>处理完成后，结果将自动保存到系统中</li>
               </ul>
             </div>
@@ -210,7 +376,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { API_PATHS, buildApiUrl } from '../config/api';
 
@@ -223,12 +389,200 @@ const isUploading = ref(false);
 const taskId = ref('');
 const processTime = ref('');
 const fileInput = ref(null);
-const useLangChain = ref(false); // 切换开关状态
+const useLangChain = ref(false);
+const useLocalData = ref(false);
+
+// 本地数据相关
+const localDataList = ref([]);
+const selectedLocalIds = ref([]);
+const selectedItemsMap = ref(new Map());
+const selectAllLocal = ref(false);
+const isLoadingLocalData = ref(false);
+const localSearchKeyword = ref('');
+const showSelectedPanel = ref(false);
+
+// 监听本地数据模式切换
+watch(useLocalData, (newVal) => {
+  if (newVal && useLangChain.value) {
+    useLangChain.value = false;
+  }
+});
+
+// 处理模式切换（防止在本地数据模式下切换到LangChain）
+const handleModeChange = () => {
+  if (useLocalData.value && useLangChain.value) {
+    useLangChain.value = false;
+  }
+};
 
 // 任务相关数据
 const tasks = ref([]);
 const selectedTask = ref(null);
 const isLoadingTasks = ref(false);
+
+// 加载本地数据
+const loadLocalData = async () => {
+  isLoadingLocalData.value = true;
+  try {
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    let url = buildApiUrl(API_PATHS.GET_LOGISTICS_LIST);
+    if (localSearchKeyword.value && localSearchKeyword.value.trim()) {
+      url += `?keyword=${encodeURIComponent(localSearchKeyword.value.trim())}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: headers,
+      credentials: 'include'
+    });
+
+    if (response.status === 401) {
+      alert('登录已过期，请重新登录');
+      router.push('/login');
+      return;
+    }
+
+    const result = await response.json();
+    if (result.code === 0) {
+      localDataList.value = result.data || [];
+    } else {
+      console.error('获取本地数据失败:', result.message || '未知错误');
+      localDataList.value = [];
+    }
+  } catch (error) {
+    console.error('获取本地数据失败:', error);
+    localDataList.value = [];
+  } finally {
+    isLoadingLocalData.value = false;
+  }
+};
+
+// 搜索本地数据
+const searchLocalData = () => {
+  loadLocalData();
+};
+
+// 清除搜索
+const clearLocalSearch = () => {
+  localSearchKeyword.value = '';
+  loadLocalData();
+};
+
+// 已选择的数据详情（用于浮动面板显示）
+const selectedItemsData = computed(() => {
+  return selectedLocalIds.value.map(id => selectedItemsMap.value.get(id)).filter(Boolean);
+});
+
+// 从已选列表中移除某项
+const removeSelectedItem = (id) => {
+  const index = selectedLocalIds.value.indexOf(id);
+  if (index > -1) {
+    selectedLocalIds.value.splice(index, 1);
+    selectedItemsMap.value.delete(id);
+  }
+};
+
+// 清空所有选择
+const clearAllSelected = () => {
+  selectedLocalIds.value = [];
+  selectedItemsMap.value.clear();
+  selectAllLocal.value = false;
+};
+
+// 切换全选
+const toggleSelectAll = () => {
+  if (selectAllLocal.value) {
+    localDataList.value.forEach(item => {
+      if (!selectedLocalIds.value.includes(item.id)) {
+        selectedLocalIds.value.push(item.id);
+        selectedItemsMap.value.set(item.id, item);
+      }
+    });
+  } else {
+    localDataList.value.forEach(item => {
+      selectedItemsMap.value.delete(item.id);
+    });
+    selectedLocalIds.value = [];
+  }
+};
+
+// 切换单个选择
+const toggleSelectItem = (id) => {
+  const index = selectedLocalIds.value.indexOf(id);
+  if (index > -1) {
+    selectedLocalIds.value.splice(index, 1);
+    selectedItemsMap.value.delete(id);
+  } else {
+    selectedLocalIds.value.push(id);
+    const item = localDataList.value.find(i => i.id === id);
+    if (item) {
+      selectedItemsMap.value.set(id, item);
+    }
+  }
+  selectAllLocal.value = localDataList.value.every(item => selectedLocalIds.value.includes(item.id));
+};
+
+// 提交本地数据
+const submitLocalData = async () => {
+  if (selectedLocalIds.value.length === 0) {
+    alert('请选择要提交的数据');
+    return;
+  }
+
+  isUploading.value = true;
+  const startTime = new Date();
+
+  try {
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(buildApiUrl(API_PATHS.SUBMIT_LOCAL_DATA), {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        orderIds: selectedLocalIds.value,
+        mode: useLangChain.value ? 'langchain' : 'coze'
+      }),
+      credentials: 'include'
+    });
+
+    if (response.status === 401) {
+      alert('登录已过期，请重新登录');
+      router.push('/login');
+      return;
+    }
+
+    const result = await response.json();
+
+    if (result.success || result.code === 0) {
+      taskId.value = result.taskId;
+      const endTime = new Date();
+      const duration = (endTime - startTime) / 1000;
+      processTime.value = `${duration.toFixed(2)}秒`;
+      alert(result.message || '提交成功！');
+      await refreshTasks();
+      selectedLocalIds.value = [];
+      selectAllLocal.value = false;
+    } else {
+      alert('提交失败: ' + (result.error || result.message));
+    }
+  } catch (error) {
+    console.error('提交失败:', error);
+    alert('提交失败: ' + error.message);
+  } finally {
+    isUploading.value = false;
+  }
+};
 
 // 触发文件选择
 const triggerFileInput = () => {
@@ -513,6 +867,13 @@ const decodeUnicode = (str) => {
 onMounted(() => {
   refreshTasks();
 });
+
+// 监听本地数据模式切换
+watch(useLocalData, (newVal) => {
+  if (newVal && localDataList.value.length === 0) {
+    loadLocalData();
+  }
+});
 </script>
 
 <style scoped>
@@ -593,6 +954,16 @@ onMounted(() => {
   border-radius: 34px;
 }
 
+.switch-slider.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.switch-input:disabled + .switch-slider {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .switch-slider:before {
   position: absolute;
   content: "";
@@ -649,6 +1020,11 @@ onMounted(() => {
   color: #666;
   font-size: 0.95rem;
   margin: 0;
+}
+
+.mode-description .warning-text {
+  color: #ff6b6b;
+  font-weight: 500;
 }
 
 /* 网格布局 */
@@ -1280,5 +1656,370 @@ onMounted(() => {
     flex: 1;
     text-align: center;
   }
+}
+
+/* 数据来源切换开关 */
+.data-source-switch {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 本地数据选择区域 */
+.local-data-section {
+  flex: 0 0 auto;
+}
+
+.local-data-card {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.local-search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.local-search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.local-search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-search-local {
+  padding: 12px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-search-local:hover {
+  background: #5a6fd6;
+  transform: translateY(-1px);
+}
+
+.btn-clear {
+  padding: 12px 16px;
+  background: #e0e0e0;
+  color: #666;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-clear:hover {
+  background: #d0d0d0;
+}
+
+.select-all-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.selected-count.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.selected-count.clickable.has-selection {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.selected-count.clickable.has-selection:hover {
+  color: #5a6fd6;
+}
+
+.toggle-icon {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+.selected-panel {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.selected-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.selected-panel-header h4 {
+  margin: 0;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.selected-panel-content {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.selected-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+}
+
+.selected-item-card:last-child {
+  margin-bottom: 0;
+}
+
+.selected-item-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.selected-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.selected-item-info .item-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selected-item-info .waybill-no {
+  font-weight: 600;
+  color: #333;
+}
+
+.selected-item-info .plate-no {
+  font-size: 13px;
+  color: #666;
+}
+
+.selected-item-info .item-address {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #888;
+}
+
+.selected-item-info .address-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-remove {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #ff4757;
+  color: white;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove:hover {
+  background: #ff3344;
+  transform: scale(1.1);
+}
+
+.btn-danger {
+  background: #ff4757 !important;
+  color: white !important;
+  border: none !important;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: #ff3344 !important;
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.selected-count {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.local-data-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.local-data-item {
+  display: flex;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.local-data-item:last-child {
+  border-bottom: none;
+}
+
+.local-data-item:hover {
+  background-color: #f5f7fa;
+}
+
+.local-data-item.selected {
+  background-color: rgba(102, 126, 234, 0.1);
+  border-left: 3px solid #667eea;
+}
+
+.item-checkbox {
+  margin-right: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.item-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.item-content {
+  flex: 1;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.waybill-no {
+  font-weight: 600;
+  color: #333;
+  font-size: 1rem;
+}
+
+.source-order {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.detail-item {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.detail-item strong {
+  color: #333;
+}
+
+.item-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.submit-actions {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.empty-local-data,
+.loading-local-data {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+}
+
+.empty-local-data .hint {
+  font-size: 0.9rem;
+  color: #999;
+  margin-top: 8px;
 }
 </style>

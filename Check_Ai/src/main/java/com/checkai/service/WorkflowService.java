@@ -456,4 +456,100 @@ public class WorkflowService {
 
         return result;
     }
+
+    public String createTaskFromLocalData(List<com.checkai.entity.LogisticsOrder> orders, String userId) throws Exception {
+        ExcelData excelData = convertLogisticsOrdersToExcelData(orders);
+        return createTaskAndSendToQueue(excelData, userId);
+    }
+
+    public Map<String, Object> processLocalDataWithLangChain(List<com.checkai.entity.LogisticsOrder> orders, String userId) throws Exception {
+        ExcelData excelData = convertLogisticsOrdersToExcelData(orders);
+        String contentJson = objectMapper.writeValueAsString(excelData);
+        
+        String taskId = ShortIdUtil.generateShortId();
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("excelData", excelData);
+        requestBody.put("taskId", taskId);
+        requestBody.put("userId", userId);
+        
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+        
+        System.out.println("发送请求到LangChain Agent API: " + langchainAgentApi + ", taskId=" + taskId);
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(langchainAgentApi, requestEntity, String.class);
+        
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new Exception("LangChain Agent API request failed: " + response.getStatusCode());
+        }
+        
+        Map<String, Object> responseData = objectMapper.readValue(response.getBody(), Map.class);
+        
+        Task task = new Task();
+        task.setId(ShortIdUtil.generateShortId());
+        task.setTaskId(taskId);
+        task.setOriginalTaskId(taskId);
+        task.setUserId(userId);
+        task.setBatchNumber(0);
+        task.setTotalBatches(1);
+        task.setStatus("COMPLETED");
+        task.setDataContent(response.getBody());
+        task.setCreateTime(new Date());
+        task.setUpdateTime(new Date());
+        task.setTimeoutTime(new Date(System.currentTimeMillis() + 8 * 60 * 1000));
+        task.setProgress(100);
+        task.setTotalProgress(100);
+        taskMapper.insert(task);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("taskId", taskId);
+        result.put("response", responseData);
+        
+        return result;
+    }
+
+    private ExcelData convertLogisticsOrdersToExcelData(List<com.checkai.entity.LogisticsOrder> orders) {
+        ExcelData excelData = new ExcelData();
+        List<Map<String, String>> excelBase = new ArrayList<>();
+        List<List<String>> excelPull = new ArrayList<>();
+        List<List<String>> excelPush = new ArrayList<>();
+
+        for (com.checkai.entity.LogisticsOrder order : orders) {
+            Map<String, String> baseData = new HashMap<>();
+            baseData.put("运单号", order.getWaybillNo() != null ? order.getWaybillNo() : "");
+            baseData.put("来源货单", order.getSourceOrderNo() != null ? order.getSourceOrderNo() : "");
+            baseData.put("装货地县区", order.getLoadingDistrict() != null ? order.getLoadingDistrict() : "");
+            baseData.put("装货地址", order.getLoadingAddress() != null ? order.getLoadingAddress() : "");
+            baseData.put("卸货地县区", order.getUnloadingDistrict() != null ? order.getUnloadingDistrict() : "");
+            baseData.put("卸货地址", order.getUnloadingAddress() != null ? order.getUnloadingAddress() : "");
+            baseData.put("装货重量", order.getLoadingWeight() != null ? order.getLoadingWeight().toString() : "");
+            baseData.put("卸货重量", order.getUnloadingWeight() != null ? order.getUnloadingWeight().toString() : "");
+            baseData.put("运输车牌号", order.getTransportPlateNo() != null ? order.getTransportPlateNo() : "");
+            baseData.put("货物大类型", order.getCargoMainType() != null ? order.getCargoMainType() : "");
+            baseData.put("货物小类型", order.getCargoSubType() != null ? order.getCargoSubType() : "");
+            baseData.put("装货时间", order.getLoadingTime() != null ? order.getLoadingTime().toString() : "");
+            baseData.put("卸货时间", order.getUnloadingTime() != null ? order.getUnloadingTime().toString() : "");
+            excelBase.add(baseData);
+
+            List<String> pullUrls = new ArrayList<>();
+            if (order.getLoadingWeightBillUrls() != null && !order.getLoadingWeightBillUrls().isEmpty()) {
+                pullUrls.addAll(java.util.Arrays.asList(order.getLoadingWeightBillUrls().split(",")));
+            }
+            excelPull.add(pullUrls);
+
+            List<String> pushUrls = new ArrayList<>();
+            if (order.getUnloadingWeightBillUrls() != null && !order.getUnloadingWeightBillUrls().isEmpty()) {
+                pushUrls.addAll(java.util.Arrays.asList(order.getUnloadingWeightBillUrls().split(",")));
+            }
+            excelPush.add(pushUrls);
+        }
+
+        excelData.setExcelBase(excelBase);
+        excelData.setExcelPull(excelPull);
+        excelData.setExcelPush(excelPush);
+        return excelData;
+    }
 }

@@ -46,11 +46,17 @@ const fetchOrders = async () => {
     console.log('开始获取订单列表...');
     const token = localStorage.getItem('token');
     
+    const params = {
+      pageNum: currentPage.value,
+      pageSize: pageSize.value
+    };
+    
+    if (searchKeyword.value && searchKeyword.value.trim()) {
+      params.keyword = searchKeyword.value.trim();
+    }
+    
     const response = await axios.get(`${API_BASE_URL}/logistics/pagelist`, {
-      params: {
-        pageNum: currentPage.value,
-        pageSize: pageSize.value
-      },
+      params: params,
       headers: {
         'Authorization': token ? `Bearer ${token}` : ''
       }
@@ -58,19 +64,12 @@ const fetchOrders = async () => {
     
     console.log('API响应:', response.data);
     
-    // 检查响应数据
-    if (response.data && response.data.success === true) {
-      // 后端返回success: true格式
-      orders.value = response.data.data?.list || response.data.data?.items || [];
-      total.value = response.data.data?.total || 0;
-      console.log('获取订单列表成功:', orders.value.length, '条记录');
-    } else if (response.data && response.data.code === 0) {
-      // 后端返回code: 0格式
-      orders.value = response.data.data?.list || response.data.data?.items || [];
-      total.value = response.data.data?.total || 0;
+    if (response.data && response.data.code === 0) {
+      const pageData = response.data.data;
+      orders.value = pageData?.items || [];
+      total.value = pageData?.total || 0;
       console.log('获取订单列表成功:', orders.value.length, '条记录');
     } else {
-      // API返回错误
       console.error('获取订单列表失败:', response.data?.message || '未知错误');
       orders.value = [];
       total.value = 0;

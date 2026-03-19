@@ -18,15 +18,28 @@ public class LogisticsController {
     }
 
     @GetMapping("/pagelist")
-    public Result<PageBean<LogisticsOrder>> logisticsPageList(Integer pageNum, Integer pageSize){
-        PageBean<LogisticsOrder> logisticsOrderPageBean = loginsticsService.LogisticsList(pageNum, pageSize);
+    public Result<PageBean<LogisticsOrder>> logisticsPageList(
+            Integer pageNum, 
+            Integer pageSize,
+            @RequestParam(required = false) String keyword){
+        PageBean<LogisticsOrder> logisticsOrderPageBean;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            logisticsOrderPageBean = loginsticsService.LogisticsListWithSearch(pageNum, pageSize, keyword);
+        } else {
+            logisticsOrderPageBean = loginsticsService.LogisticsList(pageNum, pageSize);
+        }
         return Result.success(logisticsOrderPageBean);
-
     }
 
     @GetMapping("/list")
-    public Result<List<LogisticsOrder>> logisticsList(){
-        List<LogisticsOrder> logisticsOrders = loginsticsService.logisticsSelect();
+    public Result<List<LogisticsOrder>> logisticsList(
+            @RequestParam(required = false) String keyword){
+        List<LogisticsOrder> logisticsOrders;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            logisticsOrders = loginsticsService.logisticsSelectWithSearch(keyword);
+        } else {
+            logisticsOrders = loginsticsService.logisticsSelect();
+        }
         return Result.success(logisticsOrders);
     }
     @GetMapping("/list/{id}")

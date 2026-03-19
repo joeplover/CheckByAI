@@ -35,6 +35,9 @@ public class ApiController {
     @Autowired
     private TaskService taskService;
 
+    @Autowired
+    private com.checkai.service.LoginsticsService loginsticsService;
+
     @PostMapping("/upload-excel")
     @Operation(summary = "上传Excel文件并处理", description = "上传Excel文件，解析数据并发送到工作流处理")
     public ResponseEntity<Map<String, Object>> uploadExcel(@RequestParam("file") MultipartFile file) {
@@ -268,6 +271,59 @@ public class ApiController {
 
             result.put("success", true);
             result.put("message", "任务删除成功");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    @PostMapping("/submit-local-data")
+    @Operation(summary = "从本地数据库选择数据提交", description = "选择本地数据库中的物流订单数据提交到工作流处理")
+    public ResponseEntity<Map<String, Object>> submitLocalData(@RequestBody com.checkai.dto.LocalDataRequest request) {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            String userId = CurrentUserHolder.getUserId();
+            if (userId == null) {
+                userId = "test-user";
+            }
+
+            if (request.getOrderIds() == null || request.getOrderIds().isEmpty()) {
+                result.put("success", false);
+                result.put("error", "请选择要提交的数据");
+                return ResponseEntity.badRequest().body(result);
+            }
+
+            java.util.List<com.checkai.entity.LogisticsOrder> orders = new java.util.ArrayList<>();
+            for (Long orderId : request.getOrderIds()) {
+                com.checkai.entity.LogisticsOrder order = loginsticsService.logisticsSelectById(orderId);
+                if (order != null) {
+                    orders.add(order);
+                }
+            }
+
+            if (orders.isEmpty()) {
+                result.put("success", false);
+                result.put("error", "未找到有效的订单数据");
+                return ResponseEntity.badRequest().body(result);
+            }
+
+            String mode = request.getMode();
+            String taskId;
+            
+            if ("langchain".equals(mode)) {
+                Map<String, Object> langchainResult = workflowService.processLocalDataWithLangChain(orders, userId);
+                taskId = (String) langchainResult.get("taskId");
+                result.put("response", langchainResult.get("response"));
+            } else {
+                taskId = workflowService.createTaskFromLocalData(orders, userId);
+            }
+
+            result.put("success", true);
+            result.put("taskId", taskId);
+            result.put("message", "已选择 " + orders.size() + " 条数据提交处理");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);

@@ -20,12 +20,14 @@ com\checkai\dto\RegisterRequest.class
 com\checkai\config\ThreadPoolConfig.class
 com\checkai\entity\Task.class
 com\checkai\service\AuthService.class
+com\checkai\config\RabbitMQConfig.class
 com\checkai\entity\CallbackData.class
 com\checkai\dto\WorkflowRequest$AdditionalMessage.class
 com\checkai\controller\ApiController.class
 com\checkai\controller\MysqlMonitorController.class
 com\checkai\service\WorkflowService.class
 com\checkai\dto\WorkflowRequest.class
+com\checkai\service\TaskProcessConsumer.class
 com\checkai\dto\LoginRequest.class
 com\checkai\service\WorkflowService$1.class
 com\checkai\mapper\LogisticsMapper.class
@@ -36,6 +38,7 @@ com\checkai\mapper\UserMapper.class
 com\checkai\service\LoginsticsService.class
 com\checkai\util\RedisUtil.class
 com\checkai\service\TaskService.class
+com\checkai\dto\TaskProcessMessage.class
 com\checkai\util\CurrentUserHolder.class
 com\checkai\cache\CompositeCacheManager.class
 com\checkai\config\CacheConfig.class

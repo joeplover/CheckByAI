@@ -12,7 +12,11 @@ export const API_PATHS = {
   UPLOAD_EXCEL: '/api/upload-excel',
   UPLOAD_EXCEL_LANGCHAIN: '/api/upload-excel-langchain',
   GET_TASKS: '/api/tasks',
-  GET_TASK_RESULTS: '/api/task/:taskId/results'
+  GET_TASK_RESULTS: '/api/task/:taskId/results',
+  
+  // 本地数据相关
+  GET_LOGISTICS_LIST: '/logistics/list',
+  SUBMIT_LOCAL_DATA: '/api/submit-local-data'
 };
 
 // 构建完整API地址

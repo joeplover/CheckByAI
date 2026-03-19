@@ -41,7 +41,7 @@ public class LoginsticsService extends ServiceImpl<LogisticsMapper, LogisticsOrd
 
     @Autowired
     private RedisUtil redisUtil;
-    @Autowired
+    
     private static final String USER_CACHE_PREFIX = "LOGISTICS:";
 
     private void keyClear() {
@@ -59,25 +59,90 @@ public class LoginsticsService extends ServiceImpl<LogisticsMapper, LogisticsOrd
      * @return PageBean<LogisticsOrder> 包含总记录数和当前页数据的分页对象
      */
     public PageBean<LogisticsOrder> LogisticsList(Integer pageNum, Integer pageSize) {
-        // 创建分页对象，指定当前页和每页大小
         Page<LogisticsOrder> page = new Page<>(pageNum, pageSize);
-
-        // 创建查询条件构造器
         LambdaQueryWrapper<LogisticsOrder> queryWrapper = new LambdaQueryWrapper<>();
-        // 设置按照ID降序排列
         queryWrapper.orderByDesc(LogisticsOrder::getId);
-
-        // 执行分页查询
         Page<LogisticsOrder> logisticsOrderPage = logisticsMapper.selectPage(page, queryWrapper);
-
-        // 封装分页结果到自定义的PageBean对象
         PageBean<LogisticsOrder> pageBean = new PageBean<>();
-        // 设置总记录数
         pageBean.setTotal(logisticsOrderPage.getTotal());
-        // 设置当前页的数据列表
         pageBean.setItems(logisticsOrderPage.getRecords());
-
         return pageBean;
+    }
+
+    public PageBean<LogisticsOrder> LogisticsListWithSearch(Integer pageNum, Integer pageSize, String keyword) {
+        String cacheKey = USER_CACHE_PREFIX + "PAGE:" + pageNum + ":" + pageSize + ":" + (keyword != null ? keyword.trim() : "");
+        
+        Object cached = redisUtil.get(cacheKey);
+        if (cached != null) {
+            return (PageBean<LogisticsOrder>) cached;
+        }
+        
+        Page<LogisticsOrder> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<LogisticsOrder> queryWrapper = new LambdaQueryWrapper<>();
+        
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            String searchKeyword = keyword.trim();
+            queryWrapper.and(wrapper -> wrapper
+                .like(LogisticsOrder::getWaybillNo, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getSourceOrderNo, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getTransportPlateNo, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getLoadingAddress, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getUnloadingAddress, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getCargoMainType, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getCargoSubType, searchKeyword)
+            );
+        }
+        
+        queryWrapper.orderByDesc(LogisticsOrder::getId);
+        Page<LogisticsOrder> logisticsOrderPage = logisticsMapper.selectPage(page, queryWrapper);
+        PageBean<LogisticsOrder> pageBean = new PageBean<>();
+        pageBean.setTotal(logisticsOrderPage.getTotal());
+        pageBean.setItems(logisticsOrderPage.getRecords());
+        
+        redisUtil.set(cacheKey, pageBean, 5, TimeUnit.MINUTES);
+        return pageBean;
+    }
+
+    public List<LogisticsOrder> logisticsSelectWithSearch(String keyword) {
+        String cacheKey = USER_CACHE_PREFIX + "SEARCH:" + (keyword != null ? keyword.trim() : "");
+        
+        Object cached = redisUtil.get(cacheKey);
+        if (cached != null) {
+            return (List<LogisticsOrder>) cached;
+        }
+        
+        LambdaQueryWrapper<LogisticsOrder> queryWrapper = new LambdaQueryWrapper<>();
+        
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            String searchKeyword = keyword.trim();
+            queryWrapper.and(wrapper -> wrapper
+                .like(LogisticsOrder::getWaybillNo, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getSourceOrderNo, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getTransportPlateNo, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getLoadingAddress, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getUnloadingAddress, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getCargoMainType, searchKeyword)
+                .or()
+                .like(LogisticsOrder::getCargoSubType, searchKeyword)
+            );
+        }
+        
+        queryWrapper.orderByDesc(LogisticsOrder::getId);
+        List<LogisticsOrder> result = logisticsMapper.selectList(queryWrapper);
+        
+        redisUtil.set(cacheKey, result, 5, TimeUnit.MINUTES);
+        return result;
     }
 
     public List<LogisticsOrder> logisticsSelect() {
