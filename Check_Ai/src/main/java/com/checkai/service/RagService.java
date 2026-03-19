@@ -82,19 +82,18 @@ public class RagService {
         List<RetrievalResult> results = searchResult.matches().stream()
             .filter(match -> {
                 Metadata meta = match.embedded().metadata();
-                Object userIdObj = meta.get("userId");
-                String segmentUserId = userIdObj != null ? userIdObj.toString() : null;
+                String segmentUserId = meta.getString("userId");
                 return userId.equals(segmentUserId);
             })
             .map(match -> {
                 Metadata meta = match.embedded().metadata();
-                Object filenameObj = meta.get("filename");
-                Object documentIdObj = meta.get("documentId");
+                String filename = meta.getString("filename");
+                String documentId = meta.getString("documentId");
                 return new RetrievalResult(
                     match.embedded().text(),
                     match.score(),
-                    filenameObj != null ? filenameObj.toString() : "unknown",
-                    documentIdObj != null ? documentIdObj.toString() : null
+                    filename != null ? filename : "unknown",
+                    documentId
                 );
             })
             .collect(Collectors.toList());
