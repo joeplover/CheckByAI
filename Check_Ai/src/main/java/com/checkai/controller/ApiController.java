@@ -16,12 +16,17 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
 @Tag(name = "API接口", description = "系统核心API接口")
 public class ApiController {
+    private static final Set<String> TASK_STATUS_FILTERS = Set.of(
+            "PENDING", "SENT", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"
+    );
 
     @Autowired
     private ExcelService excelService;
@@ -137,7 +142,7 @@ public class ApiController {
 
     @GetMapping("/tasks")
     @Operation(summary = "获取任务列表", description = "获取当前用户的任务列表")
-    public ResponseEntity<Map<String, Object>> getTasks() {
+    public ResponseEntity<Map<String, Object>> getTasks(@RequestParam(required = false) String status) {
         Map<String, Object> result = new HashMap<>();
 
         try {
@@ -149,11 +154,19 @@ public class ApiController {
                 return ResponseEntity.status(401).body(result);
             }
 
-            // 获取当前用户的任务列表
-            java.util.List<Task> tasks = taskService.getTasksByUserId(userId);
+            List<Task> tasks;
+            String normalizedStatus = normalizeTaskStatus(status);
+            if (normalizedStatus == null) {
+                tasks = taskService.getTasksByUserId(userId);
+            } else {
+                tasks = taskService.getTasksByUserIdAndStatus(userId, normalizedStatus);
+            }
 
             result.put("success", true);
             result.put("tasks", tasks);
+            if (normalizedStatus != null) {
+                result.put("filterStatus", normalizedStatus);
+            }
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
@@ -279,6 +292,63 @@ public class ApiController {
         }
     }
 
+    @PostMapping("/task/{taskId}/cancel")
+    @Operation(summary = "取消任务", description = "仅支持取消 PENDING/SENT/PROCESSING 状态任务")
+    public ResponseEntity<Map<String, Object>> cancelTask(@PathVariable String taskId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            String userId = CurrentUserHolder.getUserId();
+            if (userId == null) {
+                result.put("success", false);
+                result.put("error", "未获取到用户信息");
+                return ResponseEntity.status(401).body(result);
+            }
+
+            boolean cancelled = taskService.cancelTask(taskId, userId);
+            if (!cancelled) {
+                result.put("success", false);
+                result.put("error", "任务不存在、无权限或当前状态不可取消");
+                return ResponseEntity.badRequest().body(result);
+            }
+
+            result.put("success", true);
+            result.put("message", "任务已取消");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    @PostMapping("/task/{taskId}/retry")
+    @Operation(summary = "重试任务", description = "仅支持 FAILED/CANCELLED 的 Excel 任务重试")
+    public ResponseEntity<Map<String, Object>> retryTask(@PathVariable String taskId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            String userId = CurrentUserHolder.getUserId();
+            if (userId == null) {
+                result.put("success", false);
+                result.put("error", "未获取到用户信息");
+                return ResponseEntity.status(401).body(result);
+            }
+
+            String newTaskId = workflowService.retryTask(taskId, userId);
+            result.put("success", true);
+            result.put("newTaskId", newTaskId);
+            result.put("message", "任务已重新提交");
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(result);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
     @PostMapping("/submit-local-data")
     @Operation(summary = "从本地数据库选择数据提交", description = "选择本地数据库中的物流订单数据提交到工作流处理")
     public ResponseEntity<Map<String, Object>> submitLocalData(@RequestBody com.checkai.dto.LocalDataRequest request) {
@@ -298,7 +368,7 @@ public class ApiController {
 
             java.util.List<com.checkai.entity.LogisticsOrder> orders = new java.util.ArrayList<>();
             for (Long orderId : request.getOrderIds()) {
-                com.checkai.entity.LogisticsOrder order = loginsticsService.logisticsSelectById(orderId);
+                com.checkai.entity.LogisticsOrder order = loginsticsService.logisticsSelectById(orderId, userId);
                 if (order != null) {
                     orders.add(order);
                 }
@@ -330,6 +400,14 @@ public class ApiController {
             result.put("error", e.getMessage());
             return ResponseEntity.status(500).body(result);
         }
+    }
+
+    private String normalizeTaskStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        String normalized = status.trim().toUpperCase();
+        return TASK_STATUS_FILTERS.contains(normalized) ? normalized : null;
     }
 }
 

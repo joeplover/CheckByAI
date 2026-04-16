@@ -13,6 +13,8 @@ export const API_PATHS = {
   UPLOAD_EXCEL_LANGCHAIN: '/api/upload-excel-langchain',
   GET_TASKS: '/api/tasks',
   GET_TASK_RESULTS: '/api/task/:taskId/results',
+  CANCEL_TASK: '/api/task/:taskId/cancel',
+  RETRY_TASK: '/api/task/:taskId/retry',
   
   // 本地数据相关
   GET_LOGISTICS_LIST: '/logistics/list',

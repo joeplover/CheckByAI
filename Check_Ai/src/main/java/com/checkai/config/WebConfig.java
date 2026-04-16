@@ -33,7 +33,6 @@ public class WebConfig implements WebMvcConfigurer {
                         "/swagger-ui/**",  // Swagger UI
                         "/v3/api-docs/**", // Swagger API文档
                         "/error",           // 错误处理路径
-                        "/logistics/*",
                         "/api/mysql-monitor/*"
 
                 );

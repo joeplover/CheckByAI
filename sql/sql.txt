@@ -12,23 +12,25 @@ create table logistics_order
 (
     id                         bigint auto_increment comment '主键ID'
         primary key,
+    user_id                    varchar(36)    not null comment '用户ID',
     waybill_no                 varchar(50)    not null comment '运单号',
     source_order_no            varchar(50)    null comment '来源货单',
-    loading_district           varchar(50)    null comment '装货地县区',
+    loading_district           varchar(50)    null comment '装货地区',
     loading_address            text           null comment '装货地址',
-    unloading_district         varchar(50)    null comment '卸货地县区',
+    unloading_district         varchar(50)    null comment '卸货地区',
     unloading_address          text           null comment '卸货地址',
     loading_weight             decimal(10, 4) null comment '装货重量（吨）',
     unloading_weight           decimal(10, 4) null comment '卸货重量（吨）',
     transport_plate_no         varchar(20)    null comment '运输车牌号',
-    cargo_main_type            varchar(30)    null comment '货物大类型',
-    cargo_sub_type             varchar(30)    null comment '货物小类型',
+    cargo_main_type            varchar(30)    null comment '货物大类',
+    cargo_sub_type             varchar(30)    null comment '货物小类',
     loading_time               datetime       null comment '装货时间',
     unloading_time             datetime       null comment '卸货时间',
     loading_weight_bill_urls   text           null comment '装货磅单地址（逗号分隔URL）',
     unloading_weight_bill_urls text           null comment '卸货磅单地址（逗号分隔URL）',
-    constraint waybill_no
-        unique (waybill_no)
+    constraint uk_logistics_user_waybill
+        unique (user_id, waybill_no),
+    index idx_logistics_user_id (user_id)
 )
     comment '物流运单表' charset = utf8mb4;
 
@@ -63,3 +65,15 @@ create table user
     last_login_time datetime     null
 );
 
+-- ===================== 物流用户隔离迁移脚本（已有库执行） =====================
+-- 1) 新增 user_id（先允许为空，便于回填）
+-- alter table logistics_order add column user_id varchar(36) null comment '用户ID';
+--
+-- 2) 回填旧数据（请替换为真实用户ID，或按业务规则映射）
+-- update logistics_order set user_id = 'test-user' where user_id is null;
+--
+-- 3) 加约束与索引
+-- alter table logistics_order modify column user_id varchar(36) not null comment '用户ID';
+-- alter table logistics_order drop index waybill_no;
+-- alter table logistics_order add unique key uk_logistics_user_waybill (user_id, waybill_no);
+-- alter table logistics_order add index idx_logistics_user_id (user_id);

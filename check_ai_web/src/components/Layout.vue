@@ -10,13 +10,15 @@ const username = computed(() => localStorage.getItem('username') || '用户');
 
 const menuItems = [
   { path: '/dashboard', icon: '📊', label: '仪表盘' },
-  { path: '/logistics', icon: '📦', label: '物流管理' },
+  { path: '/logistics', icon: '🚚', label: '物流管理' },
   { path: '/main', icon: '📁', label: '文件处理' },
   { path: '/monitor', icon: '📈', label: '数据监控' },
-  { path: '/ai-assistant', icon: '🤖', label: 'AI问答' }
+  { path: '/ai-assistant', icon: '🤖', label: 'AI 助手' }
 ];
 
-const isActive = (path) => route.path === path;
+const currentPageTitle = computed(() => route.meta.title || 'CheckByAI 管理平台');
+
+const isActive = (path) => route.path === path || route.path.startsWith(`${path}/`);
 
 const navigateTo = (path) => {
   router.push(path);
@@ -36,48 +38,45 @@ const toggleSidebar = () => {
 </script>
 
 <template>
-  <div class="layout">
-    <div :class="['sidebar', { collapsed: sidebarCollapsed }]">
-      <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-icon">🚚</span>
-          <span v-if="!sidebarCollapsed" class="logo-text">智慧物流</span>
+  <div class="app-shell">
+    <header class="top-nav">
+      <div class="top-nav-left">
+        <button @click="toggleSidebar" class="menu-toggle">
+          {{ sidebarCollapsed ? '☰' : '≡' }}
+        </button>
+        <div class="brand">
+          <span class="brand-dot"></span>
+          <span class="brand-text">CheckByAI</span>
         </div>
-        <button @click="toggleSidebar" class="toggle-btn">
-          {{ sidebarCollapsed ? '→' : '←' }}
+        <span class="page-title">{{ currentPageTitle }}</span>
+      </div>
+      <div class="top-nav-right">
+        <div class="user-chip">
+          <span class="user-avatar">👤</span>
+          <span class="user-name">{{ username }}</span>
+        </div>
+        <button @click="handleLogout" class="logout-btn">
+          退出登录
         </button>
       </div>
-      
-      <nav class="sidebar-nav">
-        <div
-          v-for="item in menuItems"
-          :key="item.path"
-          :class="['nav-item', { active: isActive(item.path) }]"
-          @click="navigateTo(item.path)"
-        >
-          <span class="nav-icon">{{ item.icon }}</span>
-          <span v-if="!sidebarCollapsed" class="nav-label">{{ item.label }}</span>
-        </div>
-      </nav>
-    </div>
+    </header>
 
-    <div class="main-content">
-      <header class="top-bar">
-        <div class="top-bar-left">
-          <h1 class="page-title">{{ route.meta.title || '智慧物流系统' }}</h1>
-        </div>
-        <div class="top-bar-right">
-          <div class="user-info">
-            <span class="user-icon">👤</span>
-            <span class="user-name">{{ username }}</span>
-          </div>
-          <button @click="handleLogout" class="logout-btn">
-            退出登录
+    <div class="shell-body">
+      <aside :class="['side-nav', { collapsed: sidebarCollapsed }]">
+        <nav class="menu-list">
+          <button
+            v-for="item in menuItems"
+            :key="item.path"
+            :class="['menu-item', { active: isActive(item.path) }]"
+            @click="navigateTo(item.path)"
+          >
+            <span class="menu-icon">{{ item.icon }}</span>
+            <span v-if="!sidebarCollapsed" class="menu-label">{{ item.label }}</span>
           </button>
-        </div>
-      </header>
+        </nav>
+      </aside>
 
-      <main class="content">
+      <main class="view-area">
         <router-view />
       </main>
     </div>
@@ -85,259 +84,169 @@ const toggleSidebar = () => {
 </template>
 
 <style scoped>
-.layout {
-  display: flex;
+.app-shell {
   width: 100%;
   height: 100vh;
-  background-color: var(--neutral-50);
-  margin: 0;
+  min-width: 1280px;
+  display: flex;
+  flex-direction: column;
+  background: #edf4ff;
+}
+
+.top-nav {
+  height: 66px;
+  background: #ffffff;
+  border-bottom: 1px solid #dbe8ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: 0 2px 10px rgba(63, 117, 214, 0.08);
+}
+
+.top-nav-left,
+.top-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.menu-toggle {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d5e5ff;
+  border-radius: 8px;
+  background: #f7fbff;
+  color: #2f5da8;
   padding: 0;
 }
 
-.sidebar {
-  width: 260px;
-  background: linear-gradient(180deg, var(--primary-600) 0%, var(--primary-700) 100%);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  transition: width var(--transition-normal);
-  box-shadow: var(--shadow-md);
-  z-index: var(--z-sticky);
-}
-
-.sidebar.collapsed {
-  width: 80px;
-}
-
-.sidebar-header {
-  padding: var(--space-5);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo {
+.brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 8px;
+  padding-right: 12px;
+  border-right: 1px solid #e5efff;
 }
 
-.logo-icon {
-  font-size: 28px;
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5ea6ff, #3f78d7);
 }
 
-.logo-text {
-  font-size: var(--text-lg);
-  font-weight: var(--font-semibold);
-}
-
-.toggle-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  transition: background var(--transition-fast);
-}
-
-.toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
-}
-
-.sidebar-nav {
-  flex: 1;
-  padding: var(--space-6) 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  border-radius: var(--radius-xl);
-  margin: 0 var(--space-4);
-  position: relative;
-}
-
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.nav-item.active {
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: var(--shadow-md);
-  font-weight: var(--font-semibold);
-}
-
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 60%;
-  background: white;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-}
-
-.nav-icon {
-  font-size: 20px;
-  min-width: 20px;
-}
-
-.nav-label {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-}
-
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.top-bar {
-  background: white;
-  padding: var(--space-4) var(--space-6);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.top-bar-left {
-  flex: 1;
+.brand-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2f5da8;
 }
 
 .page-title {
-  margin: 0;
-  color: var(--neutral-800);
-  font-size: var(--text-xl);
-  font-weight: var(--font-semibold);
+  color: #43679f;
+  font-size: 15px;
+  font-weight: 600;
 }
 
-.top-bar-right {
+.user-chip {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f3f8ff;
+  color: #2f5da8;
 }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  background: var(--neutral-100);
-  border-radius: var(--radius-full);
-  transition: all var(--transition-fast);
-}
-
-.user-info:hover {
-  background: var(--neutral-200);
-}
-
-.user-icon {
-  font-size: 20px;
+.user-avatar {
+  font-size: 14px;
 }
 
 .user-name {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--neutral-800);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .logout-btn {
-  padding: var(--space-2) var(--space-4);
-  background: var(--danger-500);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #d6e6ff;
+  background: #f7fbff;
+  color: #315faa;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .logout-btn:hover {
-  background: var(--danger-600);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  background: #eaf3ff;
 }
 
-.content {
+.shell-body {
   flex: 1;
-  overflow-y: auto;
-  padding: 0;
-  background-color: var(--neutral-50);
+  min-height: 0;
+  display: flex;
 }
 
-/* 响应式设计 */
-@media (max-width: 1200px) {
-  .sidebar {
-    width: 220px;
-  }
-  
-  .nav-item {
-    padding: var(--space-3) var(--space-4);
-  }
-  
-  .nav-label {
-    font-size: var(--text-xs);
-  }
-  
-  .content {
-    padding: var(--space-5);
-  }
+.side-nav {
+  width: 228px;
+  background: #f8fbff;
+  border-right: 1px solid #dbe8ff;
+  padding: 16px 12px;
+  transition: width 0.2s ease;
+  overflow: hidden;
 }
 
-@media (max-width: 768px) {
-  .sidebar.collapsed {
-    width: 60px;
-  }
-  
-  .logo-text {
-    font-size: var(--text-sm);
-  }
-  
-  .top-bar {
-    padding: var(--space-3) var(--space-4);
-  }
-  
-  .page-title {
-    font-size: var(--text-lg);
-  }
-  
-  .content {
-    padding: var(--space-4);
-  }
-  
-  .user-name {
-    display: none;
-  }
-  
-  .logout-btn {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-xs);
-  }
+.side-nav.collapsed {
+  width: 70px;
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #4d6fa4;
+  justify-content: flex-start;
+}
+
+.menu-item:hover {
+  background: #eef5ff;
+}
+
+.menu-item.active {
+  background: linear-gradient(90deg, #e0efff, #eef6ff);
+  color: #2f5da8;
+  border: 1px solid #cfe3ff;
+}
+
+.menu-icon {
+  width: 20px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.menu-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.view-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  background: #edf4ff;
 }
 </style>

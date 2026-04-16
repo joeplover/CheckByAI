@@ -10,6 +10,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -49,6 +50,14 @@ public class TaskService {
         return taskMapper.selectList(queryWrapper);
     }
 
+    public List<Task> getTasksByUserIdAndStatus(String userId, String status) {
+        QueryWrapper<Task> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId)
+                .eq("status", status)
+                .orderByDesc("create_time");
+        return taskMapper.selectList(queryWrapper);
+    }
+
     /**
      * 根据原始任务ID获取任务列表（包括所有批次）
      * @param originalTaskId 原始任务ID
@@ -68,6 +77,34 @@ public class TaskService {
      */
     public Task getTaskById(String taskId) {
         return taskMapper.selectById(taskId);
+    }
+
+    public Task getTaskByTaskIdAndUserId(String taskId, String userId) {
+        return taskMapper.selectOne(
+                new QueryWrapper<Task>()
+                        .eq("task_id", taskId)
+                        .eq("user_id", userId)
+        );
+    }
+
+    @CacheEvict(cacheNames = "tasksByUser", key = "#userId")
+    public boolean cancelTask(String taskId, String userId) {
+        Task task = getTaskByTaskIdAndUserId(taskId, userId);
+        if (task == null) {
+            return false;
+        }
+        String status = task.getStatus();
+        if (!"PENDING".equals(status) && !"SENT".equals(status) && !"PROCESSING".equals(status)) {
+            return false;
+        }
+        Task updateTask = new Task();
+        updateTask.setStatus("CANCELLED");
+        updateTask.setUpdateTime(new Date());
+        return taskMapper.update(updateTask,
+                new QueryWrapper<Task>()
+                        .eq("task_id", taskId)
+                        .eq("user_id", userId)
+        ) > 0;
     }
 
     /**

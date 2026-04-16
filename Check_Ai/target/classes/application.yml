@@ -100,7 +100,7 @@ checkai:
     
     # Milvus 向量数据库配置
     milvus:
-      host: ${MILVUS_HOST:192.168.8.128}
+      host: ${MILVUS_HOST:localhost}
       port: ${MILVUS_PORT:19530}
       collection-name: ${MILVUS_COLLECTION:checkai_documents}
       database: ${MILVUS_DATABASE:default}

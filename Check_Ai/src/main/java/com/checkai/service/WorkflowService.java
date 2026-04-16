@@ -158,6 +158,10 @@ public class WorkflowService {
 
         // 顺序发送请求（一个一个发送，等待回调成功后再发送下一个）
         for (int i = 0; i < splitDataList.size(); i++) {
+            if (isTaskCancelled(taskId)) {
+                logger.warn("任务已取消，停止后续批次发送 - taskId={}", taskId);
+                return;
+            }
             ExcelData splitData = splitDataList.get(i);
             String batchTaskId = taskId + "_batch_" + (i + 1);
 
@@ -167,6 +171,10 @@ public class WorkflowService {
             boolean sendSuccess = false;
 
             while (!sendSuccess && retryCount < maxRetries) {
+                if (isTaskCancelled(taskId)) {
+                    logger.warn("任务已取消，停止当前批次重试 - taskId={}, batch={}", taskId, i + 1);
+                    return;
+                }
                 try {
                     // 发送请求到工作流
                     sendWorkflowRequest(splitData, batchTaskId, taskId);
@@ -201,6 +209,15 @@ public class WorkflowService {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private boolean isTaskCancelled(String taskId) {
+        Task task = taskMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>()
+                        .eq("task_id", taskId)
+                        .last("LIMIT 1")
+        );
+        return task != null && "CANCELLED".equalsIgnoreCase(task.getStatus());
     }
 
     private List<ExcelData> splitExcelData(ExcelData excelData) {
@@ -459,6 +476,37 @@ public class WorkflowService {
 
     public String createTaskFromLocalData(List<com.checkai.entity.LogisticsOrder> orders, String userId) throws Exception {
         ExcelData excelData = convertLogisticsOrdersToExcelData(orders);
+        return createTaskAndSendToQueue(excelData, userId);
+    }
+
+    public String retryTask(String taskId, String userId) throws Exception {
+        Task oldTask = taskMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Task>()
+                        .eq("task_id", taskId)
+                        .eq("user_id", userId)
+                        .last("LIMIT 1")
+        );
+        if (oldTask == null) {
+            throw new IllegalArgumentException("任务不存在或无权限");
+        }
+
+        String status = oldTask.getStatus();
+        if (!"FAILED".equals(status) && !"CANCELLED".equals(status)) {
+            throw new IllegalStateException("仅失败或已取消任务可重试");
+        }
+
+        String dataContent = oldTask.getDataContent();
+        if (dataContent == null || dataContent.isBlank()) {
+            throw new IllegalStateException("任务原始数据为空，无法重试");
+        }
+
+        ExcelData excelData;
+        try {
+            excelData = objectMapper.readValue(dataContent, ExcelData.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("该任务不是可重放的Excel任务，暂不支持重试");
+        }
+
         return createTaskAndSendToQueue(excelData, userId);
     }
 
