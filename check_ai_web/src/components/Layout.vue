@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
 const route = useRoute();
@@ -12,6 +12,7 @@ const menuItems = [
   { path: '/dashboard', icon: '📊', label: '仪表盘' },
   { path: '/logistics', icon: '🚚', label: '物流管理' },
   { path: '/main', icon: '📁', label: '文件处理' },
+  { path: '/reviews', icon: '🧾', label: '复核工作台' },
   { path: '/monitor', icon: '📈', label: '数据监控' },
   { path: '/ai-assistant', icon: '🤖', label: 'AI 助手' }
 ];

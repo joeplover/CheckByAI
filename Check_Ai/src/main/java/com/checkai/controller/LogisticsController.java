@@ -5,9 +5,19 @@ import com.checkai.entity.PageBean;
 import com.checkai.entity.Result;
 import com.checkai.service.LoginsticsService;
 import com.checkai.util.CurrentUserHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/logistics")
@@ -29,7 +39,7 @@ public class LogisticsController {
             @RequestParam(required = false) String keyword) {
         String userId = requireUserId();
         if (userId == null) {
-            return Result.error("User not found, please login again");
+            return Result.error("用户不存在，请重新登录");
         }
 
         PageBean<LogisticsOrder> logisticsOrderPageBean;
@@ -46,7 +56,7 @@ public class LogisticsController {
             @RequestParam(required = false) String keyword) {
         String userId = requireUserId();
         if (userId == null) {
-            return Result.error("User not found, please login again");
+            return Result.error("用户不存在，请重新登录");
         }
 
         List<LogisticsOrder> logisticsOrders;
@@ -62,51 +72,67 @@ public class LogisticsController {
     public Result<LogisticsOrder> logisticsSelectById(@PathVariable Long id) {
         String userId = requireUserId();
         if (userId == null) {
-            return Result.error("User not found, please login again");
+            return Result.error("用户不存在，请重新登录");
         }
 
         LogisticsOrder order = loginsticsService.logisticsSelectById(id, userId);
         if (order == null) {
-            return Result.error("Order not found or access denied");
+            return Result.error("订单不存在或无权访问");
         }
         return Result.success(order);
     }
 
     @PostMapping("/add")
-    public Result logisticsAdd(@RequestBody LogisticsOrder logisticsOrder) {
+    public Result<Void> logisticsAdd(@RequestBody LogisticsOrder logisticsOrder) {
         String userId = requireUserId();
         if (userId == null) {
-            return Result.error("User not found, please login again");
+            return Result.error("用户不存在，请重新登录");
         }
 
         loginsticsService.logisticsAdd(logisticsOrder, userId);
         return Result.success();
     }
 
-    @PutMapping
-    public Result logisticsUpdate(@RequestBody LogisticsOrder logisticsOrder) {
+    @PostMapping("/import")
+    public Result<Map<String, Object>> importExcel(@RequestParam("file") MultipartFile file) {
         String userId = requireUserId();
         if (userId == null) {
-            return Result.error("User not found, please login again");
+            return Result.error("用户不存在，请重新登录");
+        }
+        try {
+            Map<String, Object> importResult = loginsticsService.importExcel(file, userId);
+            return Result.success(importResult);
+        } catch (IllegalArgumentException exception) {
+            return Result.error(exception.getMessage());
+        } catch (Exception exception) {
+            return Result.error("Excel 导入失败: " + exception.getMessage());
+        }
+    }
+
+    @PutMapping
+    public Result<Void> logisticsUpdate(@RequestBody LogisticsOrder logisticsOrder) {
+        String userId = requireUserId();
+        if (userId == null) {
+            return Result.error("用户不存在，请重新登录");
         }
 
         boolean updated = loginsticsService.logisticsUpdate(logisticsOrder, userId);
         if (!updated) {
-            return Result.error("Order not found or access denied");
+            return Result.error("订单不存在或无权访问");
         }
         return Result.success();
     }
 
     @DeleteMapping("/delete/{id}")
-    public Result logisticsDelete(@PathVariable Long id) {
+    public Result<Void> logisticsDelete(@PathVariable Long id) {
         String userId = requireUserId();
         if (userId == null) {
-            return Result.error("User not found, please login again");
+            return Result.error("用户不存在，请重新登录");
         }
 
         boolean deleted = loginsticsService.logisticsDelete(id, userId);
         if (!deleted) {
-            return Result.error("Order not found or access denied");
+            return Result.error("订单不存在或无权访问");
         }
         return Result.success();
     }

@@ -338,51 +338,24 @@ public class WorkflowService {
         Map<String, Object> message = new HashMap<>();
         message.put("role", "joe");
         message.put("content_type", "text");
-        
-        // 构建taskId数据
-        List<String> taskIdList = new ArrayList<>();
+
+        List<Map<String, String>> taskIdList = new ArrayList<>();
         Map<String, String> taskIdMap = new HashMap<>();
         taskIdMap.put("taskId", batchTaskId);
-        taskIdList.add(objectMapper.writeValueAsString(taskIdMap));
-        
-        // 构建excel_base数据
-        List<String> excelBaseList = new ArrayList<>();
-        for (Map<String, String> item : excelData.getExcelBase()) {
-            excelBaseList.add(objectMapper.writeValueAsString(item));
-        }
-        
-        // 构建excel_pull数据
-        List<String> excelPullList = new ArrayList<>();
-        if (excelData.getExcelPull() != null && !excelData.getExcelPull().isEmpty()) {
-            for (List<String> item : excelData.getExcelPull()) {
-                excelPullList.add(objectMapper.writeValueAsString(item));
-            }
-        }
-        
-        // 构建excel_push数据
-        List<String> excelPushList = new ArrayList<>();
-        if (excelData.getExcelPush() != null && !excelData.getExcelPush().isEmpty()) {
-            for (List<String> item : excelData.getExcelPush()) {
-                excelPushList.add(objectMapper.writeValueAsString(item));
-            }
-        }
-        
-        // 构建data数据
+        taskIdList.add(taskIdMap);
+
         Map<String, Object> data = new HashMap<>();
         data.put("taskId", taskIdList);
-        data.put("excel_base", excelBaseList);
-        data.put("excel_pull", excelPullList);
-        data.put("excel_push", excelPushList);
-        
-        // 构建content数据
+        data.put("excel_base", excelData.getExcelBase());
+        data.put("excel_pull", excelData.getExcelPull() == null ? new ArrayList<>() : excelData.getExcelPull());
+        data.put("excel_push", excelData.getExcelPush() == null ? new ArrayList<>() : excelData.getExcelPush());
+
         Map<String, Object> contentMap = new HashMap<>();
         contentMap.put("data", data);
-        String content = objectMapper.writeValueAsString(contentMap);
-        
-        message.put("content", content);
+        message.put("content", objectMapper.writeValueAsString(contentMap));
         additionalMessages.add(message);
         
-        // 设置请求参数
+        // ??????
         requestData.put("additional_messages", additionalMessages);
         requestData.put("workflow_id", workflowId);
         requestData.put("parameters", new HashMap<>());
@@ -398,7 +371,7 @@ public class WorkflowService {
             // 发送请求（4xx/5xx 默认会抛 HttpStatusCodeException）
             ResponseEntity<String> response = restTemplate.postForEntity(workflowApiUrl, requestEntity, String.class);
             if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new Exception("Workflow request failed: " + response.getStatusCode() + ", body=" + response.getBody());
+                throw new Exception("工作流请求失败: " + response.getStatusCode() + ", 响应体=" + response.getBody());
             }
             // 响应成功，不需要更新任务状态（等待回调）
         } catch (HttpStatusCodeException e) {
@@ -411,9 +384,9 @@ public class WorkflowService {
             // 401/403通常是Authorization不正确或已过期；把响应头也带出来便于定位（不含token）
             String headersStr = e.getResponseHeaders() != null ? e.getResponseHeaders().toString() : "null";
             String bodyStr = e.getResponseBodyAsString() != null ? e.getResponseBodyAsString() : "";
-            throw new Exception("Workflow request failed: " + e.getStatusCode()
-                    + ", headers=" + headersStr
-                    + ", body=" + bodyStr, e);
+            throw new Exception("工作流请求失败: " + e.getStatusCode()
+                    + ", 响应头=" + headersStr
+                    + ", 响应体=" + bodyStr, e);
         }
     }
 
@@ -443,7 +416,7 @@ public class WorkflowService {
 
         // 处理响应
         if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new Exception("LangChain Agent API request failed: " + response.getStatusCode());
+            throw new Exception("LangChain Agent API 请求失败: " + response.getStatusCode());
         }
 
         // 解析响应结果
@@ -531,7 +504,7 @@ public class WorkflowService {
         ResponseEntity<String> response = restTemplate.postForEntity(langchainAgentApi, requestEntity, String.class);
         
         if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new Exception("LangChain Agent API request failed: " + response.getStatusCode());
+            throw new Exception("LangChain Agent API 请求失败: " + response.getStatusCode());
         }
         
         Map<String, Object> responseData = objectMapper.readValue(response.getBody(), Map.class);
@@ -582,16 +555,10 @@ public class WorkflowService {
             baseData.put("卸货时间", order.getUnloadingTime() != null ? order.getUnloadingTime().toString() : "");
             excelBase.add(baseData);
 
-            List<String> pullUrls = new ArrayList<>();
-            if (order.getLoadingWeightBillUrls() != null && !order.getLoadingWeightBillUrls().isEmpty()) {
-                pullUrls.addAll(java.util.Arrays.asList(order.getLoadingWeightBillUrls().split(",")));
-            }
+            List<String> pullUrls = cleanImageUrls(order.getLoadingWeightBillUrls());
             excelPull.add(pullUrls);
 
-            List<String> pushUrls = new ArrayList<>();
-            if (order.getUnloadingWeightBillUrls() != null && !order.getUnloadingWeightBillUrls().isEmpty()) {
-                pushUrls.addAll(java.util.Arrays.asList(order.getUnloadingWeightBillUrls().split(",")));
-            }
+            List<String> pushUrls = cleanImageUrls(order.getUnloadingWeightBillUrls());
             excelPush.add(pushUrls);
         }
 
@@ -599,5 +566,23 @@ public class WorkflowService {
         excelData.setExcelPull(excelPull);
         excelData.setExcelPush(excelPush);
         return excelData;
+    }
+
+    private List<String> cleanImageUrls(String rawUrls) {
+        List<String> urls = new ArrayList<>();
+        if (rawUrls == null || rawUrls.isBlank()) {
+            return urls;
+        }
+
+        for (String rawUrl : rawUrls.split(",")) {
+            String url = rawUrl == null ? "" : rawUrl.trim();
+            if (url.isEmpty() || "null".equalsIgnoreCase(url)) {
+                continue;
+            }
+            if (url.startsWith("http://") || url.startsWith("https://")) {
+                urls.add(url);
+            }
+        }
+        return urls;
     }
 }

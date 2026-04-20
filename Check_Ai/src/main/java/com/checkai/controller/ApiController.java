@@ -1,10 +1,13 @@
 package com.checkai.controller;
 
 import com.checkai.dto.ExcelData;
+import com.checkai.dto.LocalDataRequest;
 import com.checkai.entity.CallbackData;
+import com.checkai.entity.LogisticsOrder;
 import com.checkai.entity.Task;
 import com.checkai.service.CallbackService;
 import com.checkai.service.ExcelService;
+import com.checkai.service.LoginsticsService;
 import com.checkai.service.TaskService;
 import com.checkai.service.WorkflowService;
 import com.checkai.util.CurrentUserHolder;
@@ -12,17 +15,26 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
-@Tag(name = "API接口", description = "系统核心API接口")
+@Tag(name = "API 控制器", description = "系统核心 API 接口")
 public class ApiController {
     private static final Set<String> TASK_STATUS_FILTERS = Set.of(
             "PENDING", "SENT", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"
@@ -41,34 +53,26 @@ public class ApiController {
     private TaskService taskService;
 
     @Autowired
-    private com.checkai.service.LoginsticsService loginsticsService;
+    private LoginsticsService loginsticsService;
 
     @PostMapping("/upload-excel")
-    @Operation(summary = "上传Excel文件并处理", description = "上传Excel文件，解析数据并发送到工作流处理")
+    @Operation(summary = "上传 Excel 文件", description = "解析 Excel 文件并创建异步检测任务")
     public ResponseEntity<Map<String, Object>> uploadExcel(@RequestParam("file") MultipartFile file) {
         Map<String, Object> result = new HashMap<>();
 
         try {
             if (file.isEmpty()) {
-                result.put("error", "空文件名");
+                result.put("error", "文件不能为空");
                 return ResponseEntity.badRequest().body(result);
             }
 
-            // 解析Excel
             ExcelData excelData = excelService.parseExcel(file.getInputStream());
-
-            // 从ThreadLocal中获取当前用户ID
-            String userId = CurrentUserHolder.getUserId();
-            // 如果获取不到，使用默认值
-            if (userId == null) {
-                userId = "test-user";
-            }
-            // 创建任务并通过 RabbitMQ 异步触发实际处理
+            String userId = getCurrentUserIdOrDefault();
             String taskId = workflowService.createTaskAndSendToQueue(excelData, userId);
 
             result.put("success", true);
             result.put("taskId", taskId);
-            result.put("message", "文件上传成功，任务已进入队列等待处理");
+            result.put("message", "文件上传成功，任务已提交处理");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
@@ -78,25 +82,23 @@ public class ApiController {
     }
 
     @PostMapping("/callback")
-    @Operation(summary = "工作流回调接口", description = "接收工作流处理结果的回调，taskId从请求参数获取，data从请求体data获取")
+    @Operation(summary = "接收回调结果", description = "根据 taskId 保存外部处理结果")
     public ResponseEntity<Map<String, Object>> callback(
             @RequestBody String data,
             @RequestParam String taskId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 检查参数是否存在
             if (taskId == null || data == null || data.isEmpty()) {
                 result.put("status", "error");
-                result.put("message", "缺少必要参数: taskId是必填项，请求体data不能为空");
+                result.put("message", "缺少必要参数：taskId 或 data");
                 return ResponseEntity.badRequest().body(result);
             }
 
-            // 处理回调数据
             callbackService.processCallback(taskId, data);
 
             result.put("status", "success");
-            result.put("message", "回调数据已成功处理");
+            result.put("message", "回调数据处理成功");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("status", "error");
@@ -106,7 +108,7 @@ public class ApiController {
     }
 
     @GetMapping("/callback")
-    @Operation(summary = "工作流回调接口(GET方式)", description = "已废弃：通过GET方式接收工作流处理结果的回调，仅支持短文本数据")
+    @Operation(summary = "接收回调结果（GET）", description = "兼容 GET 方式提交回调数据")
     public ResponseEntity<Map<String, Object>> callbackGet(@RequestParam String taskId, @RequestParam String data) {
         Map<String, Object> result = new HashMap<>();
 
@@ -117,11 +119,10 @@ public class ApiController {
                 return ResponseEntity.badRequest().body(result);
             }
 
-            // 处理回调数据
             callbackService.processCallback(taskId, data);
 
             result.put("status", "success");
-            result.put("message", "回调数据已成功处理");
+            result.put("message", "回调数据处理成功");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("status", "error");
@@ -131,7 +132,7 @@ public class ApiController {
     }
 
     @GetMapping("/test")
-    @Operation(summary = "测试接口", description = "测试服务是否正常运行")
+    @Operation(summary = "接口测试", description = "检查 API 服务是否正常运行")
     public ResponseEntity<Map<String, Object>> test() {
         Map<String, Object> result = new HashMap<>();
         result.put("service", "AI Check System API");
@@ -141,16 +142,15 @@ public class ApiController {
     }
 
     @GetMapping("/tasks")
-    @Operation(summary = "获取任务列表", description = "获取当前用户的任务列表")
+    @Operation(summary = "获取任务列表", description = "获取当前用户的任务列表，可按状态过滤")
     public ResponseEntity<Map<String, Object>> getTasks(@RequestParam(required = false) String status) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
             if (userId == null) {
                 result.put("success", false);
-                result.put("error", "未获取到用户信息");
+                result.put("error", "用户未登录");
                 return ResponseEntity.status(401).body(result);
             }
 
@@ -176,21 +176,19 @@ public class ApiController {
     }
 
     @GetMapping("/task/{taskId}/results")
-    @Operation(summary = "获取任务结果", description = "根据任务ID获取当前用户的任务结果")
+    @Operation(summary = "获取任务结果", description = "根据任务 ID 获取当前用户的处理结果")
     public ResponseEntity<Map<String, Object>> getTaskResults(@PathVariable String taskId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
             if (userId == null) {
                 result.put("success", false);
-                result.put("error", "未获取到用户信息");
+                result.put("error", "用户未登录");
                 return ResponseEntity.status(401).body(result);
             }
 
-            // 获取当前用户的任务结果
-            java.util.List<CallbackData> results = callbackService.getTaskResultsByTaskIdAndUserId(taskId, userId);
+            List<CallbackData> results = callbackService.getTaskResultsByTaskIdAndUserId(taskId, userId);
 
             result.put("success", true);
             result.put("results", results);
@@ -203,21 +201,19 @@ public class ApiController {
     }
 
     @GetMapping("/task/original/{originalTaskId}/results")
-    @Operation(summary = "获取原始任务结果", description = "根据原始任务ID获取当前用户所有批次的任务结果")
+    @Operation(summary = "获取原始任务结果", description = "根据原始任务 ID 获取当前用户的所有批次结果")
     public ResponseEntity<Map<String, Object>> getOriginalTaskResults(@PathVariable String originalTaskId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
             if (userId == null) {
                 result.put("success", false);
-                result.put("error", "未获取到用户信息");
+                result.put("error", "用户未登录");
                 return ResponseEntity.status(401).body(result);
             }
 
-            // 获取当前用户的原始任务结果
-            java.util.List<CallbackData> results = callbackService.getTaskResultsByOriginalTaskIdAndUserId(originalTaskId, userId);
+            List<CallbackData> results = callbackService.getTaskResultsByOriginalTaskIdAndUserId(originalTaskId, userId);
 
             result.put("success", true);
             result.put("results", results);
@@ -230,30 +226,23 @@ public class ApiController {
     }
 
     @PostMapping("/upload-excel-langchain")
-    @Operation(summary = "上传Excel文件并调用LangChain Agent", description = "上传Excel文件，调用LangChain Agent API生成taskId，等待结果返回后插入数据库")
+    @Operation(summary = "上传 Excel 到 LangChain", description = "上传 Excel 文件并调用 LangChain Agent 处理")
     public ResponseEntity<Map<String, Object>> uploadExcelLangChain(@RequestParam("file") MultipartFile file) {
         Map<String, Object> result = new HashMap<>();
 
         try {
             if (file.isEmpty()) {
                 result.put("success", false);
-                result.put("error", "空文件名");
+                result.put("error", "文件不能为空");
                 return ResponseEntity.badRequest().body(result);
             }
 
-            // 从ThreadLocal中获取当前用户ID
-            String userId = CurrentUserHolder.getUserId();
-            // 如果获取不到，使用默认值
-            if (userId == null) {
-                userId = "test-user";
-            }
-
-            // 调用服务层方法处理文件上传和API调用
+            String userId = getCurrentUserIdOrDefault();
             Map<String, Object> processResult = workflowService.processExcelWithLangChain(file, userId);
 
             result.put("success", true);
             result.put("taskId", processResult.get("taskId"));
-            result.put("message", "文件上传成功，任务已处理完成");
+            result.put("message", "文件上传成功，LangChain 任务已提交处理");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
@@ -263,23 +252,19 @@ public class ApiController {
     }
 
     @DeleteMapping("/task/{taskId}")
-    @Operation(summary = "删除任务", description = "根据任务ID删除任务及其相关数据")
+    @Operation(summary = "删除任务", description = "根据任务 ID 删除当前用户的任务和结果")
     public ResponseEntity<Map<String, Object>> deleteTask(@PathVariable String taskId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 从ThreadLocal中获取当前用户ID
             String userId = CurrentUserHolder.getUserId();
             if (userId == null) {
                 result.put("success", false);
-                result.put("error", "未获取到用户信息");
+                result.put("error", "用户未登录");
                 return ResponseEntity.status(401).body(result);
             }
 
-            // 删除任务及其相关数据
-            // 1. 删除任务相关的回调数据
             callbackService.deleteByTaskId(taskId, userId);
-            // 2. 删除任务
             taskService.deleteTask(taskId, userId);
 
             result.put("success", true);
@@ -293,14 +278,14 @@ public class ApiController {
     }
 
     @PostMapping("/task/{taskId}/cancel")
-    @Operation(summary = "取消任务", description = "仅支持取消 PENDING/SENT/PROCESSING 状态任务")
+    @Operation(summary = "取消任务", description = "取消 PENDING、SENT 或 PROCESSING 状态的任务")
     public ResponseEntity<Map<String, Object>> cancelTask(@PathVariable String taskId) {
         Map<String, Object> result = new HashMap<>();
         try {
             String userId = CurrentUserHolder.getUserId();
             if (userId == null) {
                 result.put("success", false);
-                result.put("error", "未获取到用户信息");
+                result.put("error", "用户未登录");
                 return ResponseEntity.status(401).body(result);
             }
 
@@ -312,7 +297,7 @@ public class ApiController {
             }
 
             result.put("success", true);
-            result.put("message", "任务已取消");
+            result.put("message", "任务取消成功");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
@@ -322,21 +307,21 @@ public class ApiController {
     }
 
     @PostMapping("/task/{taskId}/retry")
-    @Operation(summary = "重试任务", description = "仅支持 FAILED/CANCELLED 的 Excel 任务重试")
+    @Operation(summary = "重试任务", description = "重试 FAILED 或 CANCELLED 状态的 Excel 任务")
     public ResponseEntity<Map<String, Object>> retryTask(@PathVariable String taskId) {
         Map<String, Object> result = new HashMap<>();
         try {
             String userId = CurrentUserHolder.getUserId();
             if (userId == null) {
                 result.put("success", false);
-                result.put("error", "未获取到用户信息");
+                result.put("error", "用户未登录");
                 return ResponseEntity.status(401).body(result);
             }
 
             String newTaskId = workflowService.retryTask(taskId, userId);
             result.put("success", true);
             result.put("newTaskId", newTaskId);
-            result.put("message", "任务已重新提交");
+            result.put("message", "任务重试已提交");
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException | IllegalStateException e) {
             result.put("success", false);
@@ -350,39 +335,54 @@ public class ApiController {
     }
 
     @PostMapping("/submit-local-data")
-    @Operation(summary = "从本地数据库选择数据提交", description = "选择本地数据库中的物流订单数据提交到工作流处理")
-    public ResponseEntity<Map<String, Object>> submitLocalData(@RequestBody com.checkai.dto.LocalDataRequest request) {
+    @Operation(summary = "提交本地数据", description = "从本地物流订单中选择数据并提交处理")
+    public ResponseEntity<Map<String, Object>> submitLocalData(@RequestBody LocalDataRequest request) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            String userId = CurrentUserHolder.getUserId();
-            if (userId == null) {
-                userId = "test-user";
-            }
+            String userId = getCurrentUserIdOrDefault();
 
-            if (request.getOrderIds() == null || request.getOrderIds().isEmpty()) {
+            boolean hasOrderIds = request.getOrderIds() != null && !request.getOrderIds().isEmpty();
+            boolean hasWaybillNos = request.getWaybillNos() != null && !request.getWaybillNos().isEmpty();
+            if (!hasOrderIds && !hasWaybillNos) {
                 result.put("success", false);
                 result.put("error", "请选择要提交的数据");
                 return ResponseEntity.badRequest().body(result);
             }
 
-            java.util.List<com.checkai.entity.LogisticsOrder> orders = new java.util.ArrayList<>();
-            for (Long orderId : request.getOrderIds()) {
-                com.checkai.entity.LogisticsOrder order = loginsticsService.logisticsSelectById(orderId, userId);
-                if (order != null) {
-                    orders.add(order);
+            List<LogisticsOrder> orders = new ArrayList<>();
+            Set<Long> addedOrderIds = new HashSet<>();
+
+            if (hasOrderIds) {
+                for (Long orderId : request.getOrderIds()) {
+                    if (orderId == null) {
+                        continue;
+                    }
+                    LogisticsOrder order = loginsticsService.logisticsSelectById(orderId, userId);
+                    if (order != null && addedOrderIds.add(order.getId())) {
+                        orders.add(order);
+                    }
+                }
+            }
+
+            if (hasWaybillNos) {
+                for (String waybillNo : request.getWaybillNos()) {
+                    LogisticsOrder order = loginsticsService.logisticsSelectByWaybillNo(waybillNo, userId);
+                    if (order != null && addedOrderIds.add(order.getId())) {
+                        orders.add(order);
+                    }
                 }
             }
 
             if (orders.isEmpty()) {
                 result.put("success", false);
-                result.put("error", "未找到有效的订单数据");
+                result.put("error", "未找到有效的订单数据，请刷新本地数据后重试");
                 return ResponseEntity.badRequest().body(result);
             }
 
             String mode = request.getMode();
             String taskId;
-            
+
             if ("langchain".equals(mode)) {
                 Map<String, Object> langchainResult = workflowService.processLocalDataWithLangChain(orders, userId);
                 taskId = (String) langchainResult.get("taskId");
@@ -393,13 +393,18 @@ public class ApiController {
 
             result.put("success", true);
             result.put("taskId", taskId);
-            result.put("message", "已选择 " + orders.size() + " 条数据提交处理");
+            result.put("message", "已选择 " + orders.size() + " 条数据并提交处理");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             result.put("success", false);
             result.put("error", e.getMessage());
             return ResponseEntity.status(500).body(result);
         }
+    }
+
+    private String getCurrentUserIdOrDefault() {
+        String userId = CurrentUserHolder.getUserId();
+        return userId == null ? "test-user" : userId;
     }
 
     private String normalizeTaskStatus(String status) {
@@ -410,4 +415,3 @@ public class ApiController {
         return TASK_STATUS_FILTERS.contains(normalized) ? normalized : null;
     }
 }
-

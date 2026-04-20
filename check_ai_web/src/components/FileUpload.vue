@@ -6,7 +6,6 @@
         <p class="description">上传 Excel 文件或选择本地数据，选择处理方式进行智能分析</p>
       </div>
       
-      <!-- 閺佺増宓侀弶銉︾爱閸掑洦宕?-->
       <div class="data-source-switch">
         <div class="switch-container">
           <label class="switch-label">
@@ -24,7 +23,6 @@
         </div>
       </div>
       
-      <!-- 婢跺嫮鎮婇弬鐟扮础閸掑洦宕插鈧崗?-->
       <div class="processing-mode-switch">
         <div class="switch-container">
           <label class="switch-label">
@@ -50,9 +48,7 @@
       </div>
       
       <div class="grid-layout">
-        <!-- 瀹革缚鏅堕敍姘瀮娴犳湹绗傛导鐘插隘閸?-->
         <div class="left-section">
-          <!-- 鏂囦欢涓婁紶閸栧搫鐓?-->
           <div class="upload-section" v-if="!useLocalData">
             <div class="upload-card">
               <div class="card-header">
@@ -82,7 +78,6 @@
             </div>
           </div>
           
-          <!-- 鏈湴鏁版嵁閫夋嫨閸栧搫鐓?-->
           <div class="local-data-section" v-else>
             <div class="local-data-card">
               <div class="card-header">
@@ -95,7 +90,6 @@
                 </div>
               </div>
               
-              <!-- 鎼滅储妗?-->
               <div class="local-search-box">
                 <input 
                   v-model="localSearchKeyword" 
@@ -136,11 +130,11 @@
                       <button @click="clearAllSelected" class="btn btn-sm btn-danger">娓呯┖鍏ㄩ儴</button>
                     </div>
                     <div class="selected-panel-content">
-                      <div 
-                        v-for="item in selectedItemsData" 
-                        :key="item.id" 
-                        class="selected-item-card"
-                      >
+                  <div 
+                    v-for="item in selectedItemsData" 
+                    :key="item._rowKey" 
+                    class="selected-item-card"
+                  >
                         <div class="selected-item-info">
                           <div class="item-main">
                             <span class="waybill-no">{{ item.waybillNo || '无运单号' }}</span>
@@ -155,7 +149,7 @@
                             </span>
                           </div>
                         </div>
-                        <button @click="removeSelectedItem(item.id)" class="btn-remove">×</button>
+                        <button @click="removeSelectedItem(item._rowKey)" class="btn-remove">×</button>
                       </div>
                     </div>
                   </div>
@@ -164,16 +158,16 @@
                 <div class="local-data-list">
                   <div 
                     v-for="item in localDataList" 
-                    :key="item.id" 
+                    :key="item._rowKey" 
                     class="local-data-item"
-                    :class="{ 'selected': selectedLocalIds.includes(item.id) }"
-                    @click="toggleSelectItem(item.id)"
+                    :class="{ 'selected': selectedLocalIds.includes(item._rowKey) }"
+                    @click="toggleSelectItem(item)"
                   >
                     <div class="item-checkbox">
                       <input 
                         type="checkbox" 
-                        :checked="selectedLocalIds.includes(item.id)" 
-                        @change="toggleSelectItem(item.id)"
+                        :checked="selectedLocalIds.includes(item._rowKey)" 
+                        @change.stop="handleCheckboxChange(item, $event)"
                         @click.stop
                       >
                     </div>
@@ -227,7 +221,7 @@
               </div>
               <div class="result-content">
                 <div class="result-item">
-                  <label>Task ID:</label>
+                  <label>任务ID:</label>
                   <span class="task-id">{{ taskId }}</span>
                   <button @click="copyTaskId" class="btn btn-sm btn-outline">复制</button>
                 </div>
@@ -266,7 +260,6 @@
           </div>
         </div>
         
-        <!-- 閸欏厖鏅堕敍姘崲閸斺€虫嫲閺佺増宓佺仦鏇犮仛閸栧搫鐓?-->
         <div class="right-section">
           <div class="tasks-section">
             <div class="tasks-card">
@@ -367,7 +360,7 @@
               <span class="task-id">{{ selectedTask.taskId }}</span>
             </div>
             <div class="meta-item">
-              <label>Status</label>
+            <label>状态</label>
               <span :class="['status', selectedTask.status.toLowerCase()]">{{ selectedTask.status }}</span>
             </div>
             <div class="meta-item">
@@ -389,10 +382,81 @@
           </div>
 
           <div class="task-modal-result">
-            <label>处理结果</label>
+            <div class="result-title-row">
+              <label>处理结果</label>
+              <div class="result-view-toggle" v-if="taskResultText">
+                <button
+                  type="button"
+                  :class="['toggle-btn', { active: resultViewMode === 'structured' }]"
+                  @click="resultViewMode = 'structured'"
+                >
+                  结构化结果
+                </button>
+                <button
+                  type="button"
+                  :class="['toggle-btn', { active: resultViewMode === 'raw' }]"
+                  @click="resultViewMode = 'raw'"
+                >
+                  原始回调数据
+                </button>
+              </div>
+            </div>
             <div v-if="taskResultLoading" class="task-result-loading">结果加载中...</div>
             <div v-else class="result-data">
-              <pre>{{ decodeUnicode(selectedTask.dataContent || selectedTask.data) || '暂无结果数据' }}</pre>
+              <pre v-if="resultViewMode === 'raw'">{{ taskResultText || '暂无结果数据' }}</pre>
+              <div v-else-if="structuredTaskResult.length > 0" class="structured-result-list">
+                <div
+                  v-for="(item, index) in structuredTaskResult"
+                  :key="`${item.table['运单号'] || index}-${index}`"
+                  class="structured-result-card"
+                >
+                  <div class="structured-result-header">
+                    <div>
+                      <span class="result-index">#{{ index + 1 }}</span>
+                      <span class="result-waybill">{{ item.table['运单号'] || '未知运单' }}</span>
+                    </div>
+                    <span :class="['result-badge', item.table['异常信息'] ? 'warning' : 'success']">
+                      {{ item.table['异常信息'] ? '存在异常' : '正常' }}
+                    </span>
+                  </div>
+
+                  <div v-if="item.table['异常信息']" class="result-warning">
+                    {{ item.table['异常信息'] }}
+                  </div>
+
+                  <div class="result-section-card">
+                    <h4>表格数据</h4>
+                    <div class="result-field-grid">
+                      <div v-for="field in resultDisplayFields" :key="field" class="result-field">
+                        <span class="field-label">{{ field }}</span>
+                        <span class="field-value">{{ item.table[field] || '-' }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="ocr-grid">
+                    <div class="result-section-card">
+                      <h4>装货 OCR</h4>
+                      <div class="result-field-list">
+                        <div v-for="(value, key) in item.loadingOcr" :key="key" class="result-field-row">
+                          <span class="field-label">{{ key }}</span>
+                          <span class="field-value">{{ value || '-' }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="result-section-card">
+                      <h4>卸货 OCR</h4>
+                      <div class="result-field-list">
+                        <div v-for="(value, key) in item.unloadingOcr" :key="key" class="result-field-row">
+                          <span class="field-label">{{ key }}</span>
+                          <span class="field-value">{{ value || '-' }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <pre v-else>{{ taskResultText || '暂无结果数据' }}</pre>
             </div>
           </div>
 
@@ -422,6 +486,73 @@
               <pre>{{ aiAnalysis }}</pre>
             </div>
           </div>
+
+          <div class="task-review-panel">
+            <div class="review-header">
+              <label>人工复核</label>
+              <button
+                @click="saveTaskReview"
+                class="btn btn-primary btn-sm"
+                :disabled="taskReviewLoading || taskReviewSaving || !selectedTask"
+              >
+                {{ taskReviewSaving ? '保存中...' : '保存复核' }}
+              </button>
+            </div>
+            <div v-if="taskReviewLoading" class="task-result-loading">复核信息加载中...</div>
+            <div v-else class="review-form-grid">
+              <div class="meta-item">
+                <label>复核状态</label>
+                <select v-model="taskReview.reviewStatus" class="review-input">
+                  <option
+                    v-for="option in REVIEW_STATUS_OPTIONS"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="meta-item">
+                <label>风险等级</label>
+                <select v-model="taskReview.riskLevel" class="review-input">
+                  <option
+                    v-for="option in REVIEW_RISK_OPTIONS"
+                    :key="option.value || 'none'"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="review-form-full">
+                <label>标签</label>
+                <input
+                  v-model="taskReview.tags"
+                  class="review-input"
+                  type="text"
+                  placeholder="如：重量异常, 待人工确认"
+                >
+              </div>
+              <div class="review-form-full">
+                <label>复核结论</label>
+                <textarea
+                  v-model="taskReview.reviewResult"
+                  class="review-textarea"
+                  rows="3"
+                  placeholder="填写复核结论"
+                ></textarea>
+              </div>
+              <div class="review-form-full">
+                <label>复核备注</label>
+                <textarea
+                  v-model="taskReview.remark"
+                  class="review-textarea"
+                  rows="3"
+                  placeholder="填写补充说明"
+                ></textarea>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -435,7 +566,6 @@ import { API_PATHS, buildApiUrl } from '../config/api';
 
 const router = useRouter();
 
-// 閸濆秴绨插蹇旀殶閹?
 const isDragover = ref(false);
 const selectedFile = ref(null);
 const isUploading = ref(false);
@@ -445,7 +575,6 @@ const fileInput = ref(null);
 const useLangChain = ref(false);
 const useLocalData = ref(false);
 
-// 閺堫剙婀撮弫鐗堝祦閻╃鍙?
 const localDataList = ref([]);
 const selectedLocalIds = ref([]);
 const selectedItemsMap = ref(new Map());
@@ -454,41 +583,141 @@ const isLoadingLocalData = ref(false);
 const localSearchKeyword = ref('');
 const showSelectedPanel = ref(false);
 
-// 閻╂垵鎯夐張顒€婀撮弫鐗堝祦濡€崇础閸掑洦宕?
+const normalizeOrderId = (item) => {
+  const rawId = item?.id ?? item?.orderId ?? item?.logisticsId ?? item?.logisticsOrderId;
+  if (rawId === null || rawId === undefined || rawId === '') {
+    return null;
+  }
+  const parsedId = Number(rawId);
+  return Number.isFinite(parsedId) ? parsedId : null;
+};
+
+const buildLocalItemKey = (item, index) => {
+  const orderId = normalizeOrderId(item);
+  const waybillNo = item?.waybillNo || 'no-waybill';
+  const sourceOrderNo = item?.sourceOrderNo || 'no-source';
+  return [
+    'local',
+    orderId ?? 'no-id',
+    waybillNo,
+    sourceOrderNo,
+    index
+  ].join('-');
+};
+
+const normalizeLocalDataList = (items) => {
+  return (items || []).map((item, index) => ({
+    ...item,
+    _orderId: normalizeOrderId(item),
+    _rowKey: buildLocalItemKey(item, index)
+  }));
+};
+
+const syncSelectedStateWithLocalData = () => {
+  const validKeys = new Set(localDataList.value.map(item => item._rowKey));
+  selectedLocalIds.value = selectedLocalIds.value.filter(key => validKeys.has(key));
+
+  const nextMap = new Map();
+  localDataList.value.forEach((item) => {
+    if (selectedLocalIds.value.includes(item._rowKey)) {
+      nextMap.set(item._rowKey, item);
+    }
+  });
+  selectedItemsMap.value = nextMap;
+  selectAllLocal.value = localDataList.value.length > 0
+    && localDataList.value.every(item => selectedLocalIds.value.includes(item._rowKey));
+};
+
+const setLocalItemSelected = (item, checked) => {
+  const rowKey = item._rowKey;
+  const index = selectedLocalIds.value.indexOf(rowKey);
+
+  if (checked && index === -1) {
+    selectedLocalIds.value.push(rowKey);
+    selectedItemsMap.value.set(rowKey, item);
+  }
+
+  if (!checked && index > -1) {
+    selectedLocalIds.value.splice(index, 1);
+    selectedItemsMap.value.delete(rowKey);
+  }
+
+  selectAllLocal.value = localDataList.value.length > 0
+    && localDataList.value.every(dataItem => selectedLocalIds.value.includes(dataItem._rowKey));
+};
+
 watch(useLocalData, (newVal) => {
   if (newVal && useLangChain.value) {
     useLangChain.value = false;
   }
 });
 
-// 婢跺嫮鎮婂Ο鈥崇础閸掑洦宕查敍鍫ユЩ濮濄垹婀張顒€婀撮弫鐗堝祦濡€崇础娑撳鍨忛幑銏犲煂LangChain閿?
 const handleModeChange = () => {
   if (useLocalData.value && useLangChain.value) {
     useLangChain.value = false;
   }
 };
 
-// 娴犺濮熼惄绋垮彠閺佺増宓?
 const tasks = ref([]);
 const selectedTask = ref(null);
 const isLoadingTasks = ref(false);
 const taskResultModalVisible = ref(false);
 const taskResultLoading = ref(false);
+const resultViewMode = ref('structured');
 const aiAnalyzing = ref(false);
 const aiAnalysis = ref('');
 const aiAnalysisError = ref('');
 const aiQuestion = ref('');
 const taskStatusFilter = ref('ALL');
+const taskReviewLoading = ref(false);
+const taskReviewSaving = ref(false);
+const taskReview = reactive({
+  reviewStatus: 'UNREVIEWED',
+  riskLevel: '',
+  tags: '',
+  remark: '',
+  reviewResult: ''
+});
 const TASK_FILTER_OPTIONS = [
-  { label: 'All', value: 'ALL' },
-  { label: 'Pending', value: 'PENDING' },
-  { label: 'Processing', value: 'PROCESSING' },
-  { label: 'Completed', value: 'COMPLETED' },
-  { label: 'Failed', value: 'FAILED' },
-  { label: 'Cancelled', value: 'CANCELLED' }
+  { label: '全部', value: 'ALL' },
+  { label: '待处理', value: 'PENDING' },
+  { label: '处理中', value: 'PROCESSING' },
+  { label: '已完成', value: 'COMPLETED' },
+  { label: '失败', value: 'FAILED' },
+  { label: '已取消', value: 'CANCELLED' }
+];
+const REVIEW_STATUS_OPTIONS = [
+  { label: '未复核', value: 'UNREVIEWED' },
+  { label: '复核中', value: 'REVIEWING' },
+  { label: '已确认', value: 'CONFIRMED' },
+  { label: '已驳回', value: 'REJECTED' },
+  { label: '已关闭', value: 'CLOSED' }
+];
+const REVIEW_RISK_OPTIONS = [
+  { label: '未设置', value: '' },
+  { label: '低风险', value: 'LOW' },
+  { label: '中风险', value: 'MEDIUM' },
+  { label: '高风险', value: 'HIGH' },
+  { label: '严重', value: 'CRITICAL' }
+];
+const resultDisplayFields = [
+  '装货重量',
+  '卸货重量',
+  '毛重',
+  '皮重',
+  '净重',
+  '车牌号'
 ];
 
-// 閸旂姾娴囬張顒€婀撮弫鐗堝祦
+const taskResultText = computed(() => {
+  if (!selectedTask.value) {
+    return '';
+  }
+  return decodeUnicode(selectedTask.value.dataContent || selectedTask.value.data || '');
+});
+
+const structuredTaskResult = computed(() => parseStructuredResult(taskResultText.value));
+
 const loadLocalData = async () => {
   isLoadingLocalData.value = true;
   try {
@@ -510,95 +739,86 @@ const loadLocalData = async () => {
     });
 
     if (response.status === 401) {
-      alert('Login expired, please login again');
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
 
     const result = await response.json();
     if (result.code === 0) {
-      localDataList.value = result.data || [];
+      localDataList.value = normalizeLocalDataList(result.data);
+      syncSelectedStateWithLocalData();
     } else {
-      console.error('鑾峰彇鏈湴鏁版嵁澶辫触:', result.message || '鏈煡閿欒');
+      console.error('获取本地数据失败:', result.message || '未知错误');
       localDataList.value = [];
+      syncSelectedStateWithLocalData();
     }
   } catch (error) {
-    console.error('鑾峰彇鏈湴鏁版嵁澶辫触:', error);
+    console.error('获取本地数据失败:', error);
     localDataList.value = [];
+    syncSelectedStateWithLocalData();
   } finally {
     isLoadingLocalData.value = false;
   }
 };
 
-// 鎼滅储閺堫剙婀撮弫鐗堝祦
 const searchLocalData = () => {
   loadLocalData();
 };
 
-// 濞撳懘娅庢悳绱?
 const clearLocalSearch = () => {
   localSearchKeyword.value = '';
   loadLocalData();
 };
 
-// 瀹告煡鈧瀚ㄩ惃鍕殶閹诡喛顕涢幆鍜冪礄閻劋绨ù顔煎З闂堛垺婢橀弰鍓с仛閿?
 const selectedItemsData = computed(() => {
-  return selectedLocalIds.value.map(id => selectedItemsMap.value.get(id)).filter(Boolean);
+  return selectedLocalIds.value.map(rowKey => selectedItemsMap.value.get(rowKey)).filter(Boolean);
 });
 
-// 娴犲骸鍑￠柅澶婂灙鐞涖劋鑵戠粔濠氭珟閺屾劙銆?
-const removeSelectedItem = (id) => {
-  const index = selectedLocalIds.value.indexOf(id);
+const removeSelectedItem = (rowKey) => {
+  const index = selectedLocalIds.value.indexOf(rowKey);
   if (index > -1) {
     selectedLocalIds.value.splice(index, 1);
-    selectedItemsMap.value.delete(id);
+    selectedItemsMap.value.delete(rowKey);
   }
+  selectAllLocal.value = localDataList.value.length > 0
+    && localDataList.value.every(item => selectedLocalIds.value.includes(item._rowKey));
 };
 
-// 濞撳懐鈹栭幍鈧張澶愨偓澶嬪
 const clearAllSelected = () => {
   selectedLocalIds.value = [];
   selectedItemsMap.value.clear();
   selectAllLocal.value = false;
 };
 
-// 閸掑洦宕查崗銊┾偓?
 const toggleSelectAll = () => {
   if (selectAllLocal.value) {
     localDataList.value.forEach(item => {
-      if (!selectedLocalIds.value.includes(item.id)) {
-        selectedLocalIds.value.push(item.id);
-        selectedItemsMap.value.set(item.id, item);
+      if (!selectedLocalIds.value.includes(item._rowKey)) {
+        selectedLocalIds.value.push(item._rowKey);
+        selectedItemsMap.value.set(item._rowKey, item);
       }
     });
   } else {
     localDataList.value.forEach(item => {
-      selectedItemsMap.value.delete(item.id);
+      selectedItemsMap.value.delete(item._rowKey);
     });
     selectedLocalIds.value = [];
   }
 };
 
-// 閸掑洦宕查崡鏇氶嚋闁瀚?
-const toggleSelectItem = (id) => {
-  const index = selectedLocalIds.value.indexOf(id);
-  if (index > -1) {
-    selectedLocalIds.value.splice(index, 1);
-    selectedItemsMap.value.delete(id);
-  } else {
-    selectedLocalIds.value.push(id);
-    const item = localDataList.value.find(i => i.id === id);
-    if (item) {
-      selectedItemsMap.value.set(id, item);
-    }
-  }
-  selectAllLocal.value = localDataList.value.every(item => selectedLocalIds.value.includes(item.id));
+const toggleSelectItem = (item) => {
+  const checked = !selectedLocalIds.value.includes(item._rowKey);
+  setLocalItemSelected(item, checked);
 };
 
-// 閹绘劒姘﹂張顒€婀撮弫鐗堝祦
+const handleCheckboxChange = (item, event) => {
+  setLocalItemSelected(item, event.target.checked);
+};
+
 const submitLocalData = async () => {
   if (selectedLocalIds.value.length === 0) {
-    alert('璇烽€夋嫨瑕佹彁浜ょ殑鏁版嵁');
+    alert('请选择要提交的数据');
     return;
   }
 
@@ -614,18 +834,35 @@ const submitLocalData = async () => {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const orderIds = [...new Set(
+      selectedItemsData.value
+        .map(item => item._orderId)
+        .filter(orderId => orderId !== null)
+    )];
+    const waybillNos = [...new Set(
+      selectedItemsData.value
+        .map(item => (item.waybillNo || '').trim())
+        .filter(Boolean)
+    )];
+
+    if (orderIds.length === 0 && waybillNos.length === 0) {
+      alert('当前选中的数据缺少有效订单标识，无法提交，请先刷新本地数据后重试');
+      return;
+    }
+
     const response = await fetch(buildApiUrl(API_PATHS.SUBMIT_LOCAL_DATA), {
       method: 'POST',
       headers: headers,
       body: JSON.stringify({
-        orderIds: selectedLocalIds.value,
+        orderIds,
+        waybillNos,
         mode: useLangChain.value ? 'langchain' : 'coze'
       }),
       credentials: 'include'
     });
 
     if (response.status === 401) {
-      alert('Login expired, please login again');
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
@@ -637,27 +874,26 @@ const submitLocalData = async () => {
       const endTime = new Date();
       const duration = (endTime - startTime) / 1000;
       processTime.value = `${duration.toFixed(2)}s`;
-      alert(result.message || '鎻愪氦鎴愬姛');
       await refreshTasks();
       selectedLocalIds.value = [];
       selectAllLocal.value = false;
+      alert(result.message || '提交成功');
+
     } else {
-      alert('鎻愪氦澶辫触: ' + (result.error || result.message));
+      alert('提交失败: ' + (result.error || result.message));
     }
   } catch (error) {
-    console.error('鎻愪氦澶辫触:', error);
-    alert('鎻愪氦澶辫触: ' + error.message);
+    console.error('提交失败:', error);
+    alert('提交失败: ' + error.message);
   } finally {
     isUploading.value = false;
   }
 };
 
-// 鐟欙箑褰傞弬鍥︽闁瀚?
 const triggerFileInput = () => {
   fileInput.value.click();
 };
 
-// 婢跺嫮鎮婇弬鍥︽闁瀚?
 const handleFileSelect = (event) => {
   const file = event.target.files[0];
   if (file) {
@@ -665,7 +901,6 @@ const handleFileSelect = (event) => {
   }
 };
 
-// 婢跺嫮鎮婇弬鍥︽閹锋牗瀚?
 const handleFileDrop = (event) => {
   isDragover.value = false;
   const file = event.dataTransfer.files[0];
@@ -674,10 +909,10 @@ const handleFileDrop = (event) => {
   }
 };
 
-// 娑撳﹣绱堕弬鍥︽
+// 上传文件
 const uploadFile = async () => {
   if (!selectedFile.value) {
-    alert('璇峰厛閫夋嫨鏂囦欢');
+    alert('\u8bf7\u5148\u9009\u62e9\u6587\u4ef6');
     return;
   }
 
@@ -688,65 +923,54 @@ const uploadFile = async () => {
     const formData = new FormData();
     formData.append('file', selectedFile.value);
 
-    // 閼惧嘲褰噒oken
     const token = localStorage.getItem('token');
-
-    // 閺嬪嫬缂撶拠閿嬬湴婢?
     const headers = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // 閺嶈宓佸鈧崗宕囧Ц閹線鈧瀚ˋPI缁旑垳鍋?
     const apiPath = useLangChain.value ? API_PATHS.UPLOAD_EXCEL_LANGCHAIN : API_PATHS.UPLOAD_EXCEL;
-
     const response = await fetch(buildApiUrl(apiPath), {
       method: 'POST',
       body: formData,
-      headers: headers,
+      headers,
       credentials: 'include'
     });
 
-    // 濡偓閺屻儱鎼锋惔鏃傚Ц閹?
     if (response.status === 401) {
-      // Token鏉╁洦婀￠敍灞惧絹缁€铏规暏閹寸兘鍣搁弬鎵瑜?
-      alert('Login expired, please login again');
-      // 鐠哄疇娴嗛崚鎵瑜版洟銆?
+      alert('\u767b\u5f55\u5df2\u8fc7\u671f\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55');
       router.push('/login');
       return;
     }
 
     const result = await response.json();
-
     if (result.success || result.code === 0) {
-      taskId.value = result.taskId || result.taskId;
+      taskId.value = result.taskId;
       const endTime = new Date();
       const duration = (endTime - startTime) / 1000;
       processTime.value = `${duration.toFixed(2)}s`;
-      alert('File processed successfully');
-      // 娑撳﹣绱堕幋鎰閸氬骸鍩涢弬棰佹崲閸斺€冲灙鐞?
       await refreshTasks();
+      alert(result.message || '\u6587\u4ef6\u5904\u7406\u6210\u529f');
+
     } else {
-      alert('澶勭悊澶辫触: ' + (result.error || result.message));
+      alert('\u5904\u7406\u5931\u8d25: ' + (result.error || result.message));
     }
   } catch (error) {
-    console.error('涓婁紶澶辫触:', error);
-    alert('涓婁紶澶辫触: ' + error.message);
+    console.error('\u4e0a\u4f20\u5931\u8d25:', error);
+    alert('\u4e0a\u4f20\u5931\u8d25: ' + error.message);
   } finally {
     isUploading.value = false;
   }
 };
 
-// 澶嶅埗浠诲姟ID
 const copyTaskId = () => {
   if (taskId.value) {
     navigator.clipboard.writeText(taskId.value).then(() => {
-      alert('Task ID copied');
+      alert('任务ID已复制');
     });
   }
 };
-
-// 闁插秶鐤嗘稉濠佺炊
+// 重置上传
 const resetUpload = () => {
   selectedFile.value = null;
   taskId.value = '';
@@ -754,14 +978,12 @@ const resetUpload = () => {
   fileInput.value.value = '';
 };
 
-// 閼惧嘲褰囨禒璇插閸掓銆?
 const refreshTasks = async () => {
   isLoadingTasks.value = true;
   try {
-    // 閼惧嘲褰噒oken
+    // 闁兼儳鍢茶ぐ鍣抩ken
     const token = localStorage.getItem('token');
 
-    // 閺嬪嫬缂撶拠閿嬬湴婢?
     const headers = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -777,11 +999,8 @@ const refreshTasks = async () => {
       credentials: 'include'
     });
 
-    // 濡偓閺屻儱鎼锋惔鏃傚Ц閹?
     if (response.status === 401) {
-      // Token鏉╁洦婀￠敍灞惧絹缁€铏规暏閹寸兘鍣搁弬鎵瑜?
-      alert('Login expired, please login again');
-      // 鐠哄疇娴嗛崚鎵瑜版洟銆?
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
@@ -802,40 +1021,45 @@ const refreshTasks = async () => {
         }
       }
     } else {
-      console.error('鑾峰彇浠诲姟鍒楄〃澶辫触:', result.error || result.message);
+      console.error('获取任务列表失败:', result.error || result.message);
       tasks.value = [];
     }
   } catch (error) {
-    console.error('鑾峰彇浠诲姟鍒楄〃澶辫触:', error);
+    console.error('获取任务列表失败:', error);
     tasks.value = [];
   } finally {
     isLoadingTasks.value = false;
   }
 };
 
-// 閹垫挸绱戞禒璇插缂佹挻鐏夊鍦崶
+// 闁瑰灚鎸哥槐鎴炵鐠囨彃顫ょ紓浣规尰閻忓顕ｉ崷顓犲炊
 const openTaskModal = async (task) => {
   selectedTask.value = { ...task };
   taskResultModalVisible.value = true;
   taskResultLoading.value = true;
+  taskReviewLoading.value = true;
   aiAnalyzing.value = false;
   aiAnalysis.value = '';
   aiAnalysisError.value = '';
   aiQuestion.value = '';
-  const resultData = await fetchTaskResults(task.taskId);
+  resultViewMode.value = 'structured';
+  resetTaskReview();
+  const [resultData] = await Promise.all([
+    fetchTaskResults(task.taskId),
+    fetchTaskReview(task.taskId)
+  ]);
   if (selectedTask.value && selectedTask.value.taskId === task.taskId && resultData !== null) {
     selectedTask.value.dataContent = resultData;
   }
   taskResultLoading.value = false;
+  taskReviewLoading.value = false;
 };
 
-// 閼惧嘲褰囨禒璇插缂佹挻鐏?
 const fetchTaskResults = async (taskId) => {
   try {
-    // 閼惧嘲褰噒oken
+    // 闁兼儳鍢茶ぐ鍣抩ken
     const token = localStorage.getItem('token');
 
-    // 閺嬪嫬缂撶拠閿嬬湴婢?
     const headers = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -847,10 +1071,8 @@ const fetchTaskResults = async (taskId) => {
       credentials: 'include'
     });
 
-    // 濡偓閺屻儱鎼锋惔鏃傚Ц閹?
     if (response.status === 401) {
-      // Token鏉╁洦婀￠敍灞惧絹缁€铏规暏閹寸兘鍣搁弬鎵瑜?
-      alert('Login expired, please login again');
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return null;
     }
@@ -864,44 +1086,121 @@ const fetchTaskResults = async (taskId) => {
       }
       return '';
     } else {
-      console.error('鑾峰彇浠诲姟缁撴灉澶辫触:', result.error || result.message);
+      console.error('获取任务结果失败:', result.error || result.message);
       return null;
     }
   } catch (error) {
-    console.error('鑾峰彇浠诲姟缁撴灉澶辫触:', error);
+    console.error('获取任务结果失败:', error);
     return null;
   }
 };
 
-// 閸掔娀娅庢禒璇插
-const deleteTask = async (taskId) => {
-  if (!confirm('Confirm delete this task?')) {
-    return;
-  }
+const resetTaskReview = () => {
+  taskReview.reviewStatus = 'UNREVIEWED';
+  taskReview.riskLevel = '';
+  taskReview.tags = '';
+  taskReview.remark = '';
+  taskReview.reviewResult = '';
+};
 
+const fetchTaskReview = async (taskId) => {
   try {
-    // 閼惧嘲褰噒oken
     const token = localStorage.getItem('token');
-
-    // 閺嬪嫬缂撶拠閿嬬湴婢?
     const headers = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // 鐠嬪啰鏁ら崚鐘绘珟娴犺濮熼惃鍑橮I
-    // 濞夈劍鍓伴敍姘倵缁旑垱甯撮崣?/api/task/{taskId} 鏉╂瑩鍣烽惃?taskId 閺勵垯绗熼崝鈥崇摟濞?task.task_id閿涘牅绗夐弰顖涙殶閹诡喖绨辨稉濠氭暛id閿?
+    const response = await fetch(buildApiUrl(API_PATHS.GET_TASK_REVIEW, { taskId }), {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    });
+
+    if (response.status === 401) {
+      alert('登录已过期，请重新登录');
+      router.push('/login');
+      return;
+    }
+
+    const result = await response.json();
+    if (result.success && result.data) {
+      taskReview.reviewStatus = result.data.reviewStatus || 'UNREVIEWED';
+      taskReview.riskLevel = result.data.riskLevel || '';
+      taskReview.tags = result.data.tags || '';
+      taskReview.remark = result.data.remark || '';
+      taskReview.reviewResult = result.data.reviewResult || '';
+    }
+  } catch (error) {
+    console.error('获取复核信息失败:', error);
+  }
+};
+
+const saveTaskReview = async () => {
+  if (!selectedTask.value) {
+    return;
+  }
+
+  taskReviewSaving.value = true;
+  try {
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(buildApiUrl(API_PATHS.SAVE_TASK_REVIEW, { taskId: selectedTask.value.taskId }), {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(taskReview)
+    });
+
+    if (response.status === 401) {
+      alert('登录已过期，请重新登录');
+      router.push('/login');
+      return;
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      alert('复核已保存');
+    } else {
+      alert(result.error || '保存复核失败');
+    }
+  } catch (error) {
+    alert(`保存复核失败: ${error.message}`);
+  } finally {
+    taskReviewSaving.value = false;
+  }
+};
+
+// 闁告帞濞€濞呭孩绂掔拠鎻掝潳
+const deleteTask = async (taskId) => {
+  if (!confirm('确定要删除这个任务吗？')) {
+    return;
+  }
+
+  try {
+    // 闁兼儳鍢茶ぐ鍣抩ken
+    const token = localStorage.getItem('token');
+
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // 閻犲鍟伴弫銈夊礆閻樼粯鐝熷ù鐘侯嚙婵喖鎯冮崙姗甀
     const response = await fetch(buildApiUrl(`/api/task/${taskId}`), {
       method: 'DELETE',
       headers: headers,
       credentials: 'include'
     });
 
-    // 濡偓閺屻儱鎼锋惔鏃傚Ц閹?
     if (response.status === 401) {
-      // Token鏉╁洦婀￠敍灞惧絹缁€铏规暏閹寸兘鍣搁弬鎵瑜?
-      alert('Login expired, please login again');
-      // 鐠哄疇娴嗛崚鎵瑜版洟銆?
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
@@ -909,19 +1208,17 @@ const deleteTask = async (taskId) => {
     const result = await response.json();
 
     if (result.success || result.status === 'success') {
-      alert('Task deleted successfully');
-      // 鍒锋柊浠诲姟鍒楄〃
-      await refreshTasks();
-      // 婵″倹鐏夐崚鐘绘珟閻ㄥ嫭妲歌ぐ鎾冲闁鑵戦惃鍕崲閸斺槄绱濆〒鍛存珟闁鑵戦悩鑸碘偓?
       if (selectedTask.value && selectedTask.value.taskId === taskId) {
-        selectedTask.value = null;
+        closeTaskModal();
       }
+      await refreshTasks();
+      alert('任务删除成功');
     } else {
-      alert('鍒犻櫎澶辫触: ' + (result.error || result.message));
+      alert('删除失败: ' + (result.error || result.message));
     }
   } catch (error) {
-    console.error('鍒犻櫎浠诲姟澶辫触:', error);
-    alert('鍒犻櫎澶辫触: ' + error.message);
+    console.error('删除任务失败:', error);
+    alert('删除失败: ' + error.message);
   }
 };
 
@@ -942,7 +1239,7 @@ const canRetryTask = (task) => {
 };
 
 const cancelTask = async (taskId) => {
-  if (!confirm('纭畾Cancel杩欎釜浠诲姟鍚楋紵')) {
+  if (!confirm('确定要取消该任务吗？')) {
     return;
   }
 
@@ -960,26 +1257,26 @@ const cancelTask = async (taskId) => {
     });
 
     if (response.status === 401) {
-      alert('Login expired, please login again');
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
 
     const result = await response.json();
     if (result.success) {
-      alert('Task cancelled');
       await refreshTasks();
+      alert('任务已取消');
     } else {
-      alert('Cancel澶辫触: ' + (result.error || result.message));
+      alert('取消失败: ' + (result.error || result.message));
     }
   } catch (error) {
-    console.error('Cancel浠诲姟澶辫触:', error);
-    alert('Cancel澶辫触: ' + error.message);
+    console.error('取消任务失败:', error);
+    alert('取消失败: ' + error.message);
   }
 };
 
 const retryTask = async (taskId) => {
-  if (!confirm('纭畾Retry杩欎釜浠诲姟鍚楋紵')) {
+  if (!confirm('确定要重试该任务吗？')) {
     return;
   }
 
@@ -997,21 +1294,21 @@ const retryTask = async (taskId) => {
     });
 
     if (response.status === 401) {
-      alert('Login expired, please login again');
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
 
     const result = await response.json();
     if (result.success) {
-      alert(`Retry宸叉彁浜わ紝鏂颁换鍔D: ${result.newTaskId}`);
       await refreshTasks();
+      alert(`重试已提交，新任务ID: ${result.newTaskId}`);
     } else {
-      alert('Retry澶辫触: ' + (result.error || result.message));
+      alert('重试失败: ' + (result.error || result.message));
     }
   } catch (error) {
-    console.error('Retry浠诲姟澶辫触:', error);
-    alert('Retry澶辫触: ' + error.message);
+    console.error('重试任务失败:', error);
+    alert('重试失败: ' + error.message);
   }
 };
 
@@ -1022,7 +1319,7 @@ const askAiForTaskAnalysis = async () => {
 
   const resultText = decodeUnicode(selectedTask.value.dataContent || selectedTask.value.data || '');
   if (!resultText) {
-    aiAnalysisError.value = '褰撳墠浠诲姟鏆傛棤鍙垎鏋愮殑缁撴灉鏁版嵁';
+    aiAnalysisError.value = '当前任务暂无可分析的结果数据';
     aiAnalysis.value = '';
     return;
   }
@@ -1042,9 +1339,9 @@ const askAiForTaskAnalysis = async () => {
 
     const customQuestion = (aiQuestion.value || '').trim();
     const instruction = customQuestion
-      ? `璇峰熀浜庝互涓嬩换鍔″鐞嗙粨鏋滐紝閲嶇偣鍥炵瓟杩欎釜闂锛?{customQuestion}`
-      : '璇峰浠ヤ笅浠诲姟澶勭悊缁撴灉杩涜鏁版嵁鍒嗘瀽锛屽苟鎸夆€滃叧閿粨璁恒€佸紓甯哥偣銆侀闄╂彁绀恒€佷紭鍖栧缓璁€濆洓閮ㄥ垎杈撳嚭';
-    const prompt = `${instruction}\n\n浠诲姟ID锛?{selectedTask.value.taskId}\n\n澶勭悊缁撴灉锛歕n${resultText.slice(0, 12000)}`;
+      ? `请基于以下任务处理结果，重点回答这个问题：${customQuestion}`
+      : '请对以下任务处理结果进行数据分析，并按“关键结论、异常点、风险提示、优化建议”四部分输出';
+    const prompt = `${instruction}\n\n任务ID：${selectedTask.value.taskId}\n\n处理结果：\n${resultText.slice(0, 12000)}`;
 
     const response = await fetch(buildApiUrl(API_PATHS.AI_CHAT), {
       method: 'POST',
@@ -1054,7 +1351,7 @@ const askAiForTaskAnalysis = async () => {
     });
 
     if (response.status === 401) {
-      alert('Login expired, please login again');
+      alert('登录已过期，请重新登录');
       router.push('/login');
       return;
     }
@@ -1063,27 +1360,28 @@ const askAiForTaskAnalysis = async () => {
     if (result.code === 0 && result.data && result.data.response) {
       aiAnalysis.value = result.data.response;
     } else {
-      aiAnalysisError.value = result.message || 'AI 鍒嗘瀽澶辫触锛岃绋嶅悗Retry';
+      aiAnalysisError.value = result.message || 'AI 分析失败，请稍后重试';
     }
   } catch (error) {
-    aiAnalysisError.value = `AI 鍒嗘瀽澶辫触: ${error.message}`;
+    aiAnalysisError.value = `AI 分析失败: ${error.message}`;
   } finally {
     aiAnalyzing.value = false;
   }
 };
 
-// 鍏抽棴娴犺濮熺紒鎾寸亯瀵湱鐛?
 const closeTaskModal = () => {
   taskResultModalVisible.value = false;
   taskResultLoading.value = false;
+  taskReviewLoading.value = false;
+  taskReviewSaving.value = false;
   aiAnalyzing.value = false;
   aiAnalysis.value = '';
   aiAnalysisError.value = '';
   aiQuestion.value = '';
+  resetTaskReview();
   selectedTask.value = null;
 };
 
-// 閺嶇厧绱￠崠鏍ㄦ）閺?
 const formatDate = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -1097,24 +1395,97 @@ const formatDate = (dateString) => {
   });
 };
 
-// 鐟欙絿鐖淯nicode鏉烆兛绠熸惔蹇撳灙
 const decodeUnicode = (str) => {
   if (!str) return '';
   try {
-    // 鐟欙絿鐖淯nicode鏉烆兛绠熸惔蹇撳灙
-    return decodeURIComponent(JSON.parse('"' + str.replace(/"/g, '\\"') + '"'));
+    return str;
   } catch (error) {
-    // 婵″倹鐏夌憴锝囩垳婢惰精瑙﹂敍宀冪箲閸ョ偛甯慨瀣摟缁楋缚瑕?
     return str;
   }
 };
 
-// 缂佸嫪娆㈤幐鍌濇祰閺冩儼骞忛崣鏍︽崲閸斺€冲灙鐞?
+const normalizeResultText = (text) => {
+  return (text || '')
+    .trim()
+    .replace(/^\s*\{\s*"data"\s*:\s*/, '')
+    .replace(/\s*\}\s*$/, '')
+    .trim();
+};
+
+const parseSectionFields = (fieldsText) => {
+  const fields = {};
+  if (!fieldsText) {
+    return fields;
+  }
+
+  fieldsText
+    .split(/[,，]\s*(?=[^,，:：()]+[:：])/)
+    .forEach((part) => {
+      const separatorIndex = part.search(/[:：]/);
+      if (separatorIndex === -1) {
+        return;
+      }
+      const key = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      if (key) {
+        fields[key] = value;
+      }
+    });
+  return fields;
+};
+
+const parseStructuredResult = (text) => {
+  const normalizedText = normalizeResultText(text);
+  if (!normalizedText) {
+    return [];
+  }
+
+  const sectionRegex = /(表格|装货 OCR|卸货 OCR)\s*\(([\s\S]*?)\)(?=\s*(?:表格|装货 OCR|卸货 OCR)\s*\(|\s*$)/g;
+  const sections = [];
+  let match;
+  while ((match = sectionRegex.exec(normalizedText)) !== null) {
+    sections.push({
+      type: match[1],
+      fields: parseSectionFields(match[2])
+    });
+  }
+
+  if (sections.length === 0) {
+    return [];
+  }
+
+  const records = [];
+  let currentRecord = null;
+  sections.forEach((section) => {
+    if (section.type === '表格') {
+      currentRecord = {
+        table: section.fields,
+        loadingOcr: {},
+        unloadingOcr: {}
+      };
+      records.push(currentRecord);
+      return;
+    }
+
+    if (!currentRecord) {
+      return;
+    }
+
+    if (section.type === '装货 OCR') {
+      currentRecord.loadingOcr = section.fields;
+    }
+    if (section.type === '卸货 OCR') {
+      currentRecord.unloadingOcr = section.fields;
+    }
+  });
+
+  return records.filter(record => Object.keys(record.table).length > 0);
+};
+
 onMounted(() => {
   refreshTasks();
 });
 
-// 閻╂垵鎯夐張顒€婀撮弫鐗堝祦濡€崇础閸掑洦宕?
 watch(useLocalData, (newVal) => {
   if (newVal && localDataList.value.length === 0) {
     loadLocalData();
@@ -1159,7 +1530,6 @@ watch(useLocalData, (newVal) => {
   margin: 0;
 }
 
-/* 婢跺嫮鎮婇弬鐟扮础閸掑洦宕插鈧崗?*/
 .processing-mode-switch {
   background: white;
   border-radius: 12px;
@@ -1273,7 +1643,6 @@ watch(useLocalData, (newVal) => {
   font-weight: 500;
 }
 
-/* 缂冩垶鐗哥敮鍐ㄧ湰 */
 .grid-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1517,7 +1886,7 @@ watch(useLocalData, (newVal) => {
   font-weight: bold;
 }
 
-/* 娴犺濮熼崚妤勩€冮弽宄扮础 */
+/* 濞寸姾顕ф慨鐔煎礆濡ゅ嫨鈧啴寮藉畡鎵 */
 .tasks-section {
   flex: 1 1 auto;
 }
@@ -1739,7 +2108,6 @@ watch(useLocalData, (newVal) => {
   to { transform: rotate(360deg); }
 }
 
-/* 閺佺増宓佺仦鏇犮仛閸栧搫鐓?*/
 .task-modal-mask {
   position: fixed;
   inset: 0;
@@ -1821,6 +2189,43 @@ watch(useLocalData, (newVal) => {
   padding: 12px;
 }
 
+.result-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.result-title-row label {
+  margin-bottom: 0;
+}
+
+.result-view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #cfe0fb;
+  border-radius: 999px;
+  background: #eef5ff;
+}
+
+.toggle-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: transparent;
+  color: #4f6e9b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.toggle-btn.active {
+  background: #ffffff;
+  color: #2f5fa7;
+  box-shadow: 0 1px 4px rgba(47, 95, 167, 0.15);
+}
+
 .task-result-loading {
   color: #4f6e9b;
   font-size: 0.9rem;
@@ -1867,6 +2272,49 @@ watch(useLocalData, (newVal) => {
   font-size: 0.9rem;
 }
 
+.task-review-panel {
+  margin-top: 14px;
+  background: #f8fbff;
+  border: 1px solid #deebff;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-form-full {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-input,
+.review-textarea {
+  width: 100%;
+  border: 1px solid #d5e5ff;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.review-textarea {
+  resize: vertical;
+}
+
 .result-data {
   background-color: #f2f7ff;
   border: 1px solid #d5e5ff;
@@ -1885,7 +2333,133 @@ watch(useLocalData, (newVal) => {
   color: #333;
 }
 
-/* 閹稿鎸抽弽宄扮础 */
+.structured-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.structured-result-card {
+  background: #ffffff;
+  border: 1px solid #d5e5ff;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.structured-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.result-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: #e0ecff;
+  color: #2f5fa7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.result-waybill {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f3c68;
+}
+
+.result-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result-badge.success {
+  background: #dcfae6;
+  color: #067647;
+}
+
+.result-badge.warning {
+  background: #fef3c7;
+  color: #b54708;
+}
+
+.result-warning {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff4e5;
+  border: 1px solid #f5d8a8;
+  color: #9a6700;
+  line-height: 1.6;
+}
+
+.result-section-card {
+  background: #f8fbff;
+  border: 1px solid #deebff;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.result-section-card h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #2f5fa7;
+}
+
+.result-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ocr-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.result-field,
+.result-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.result-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-label {
+  font-size: 12px;
+  color: #6a86ae;
+}
+
+.field-value {
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .result-field-grid,
+  .ocr-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 闁圭顦甸幐鎶藉冀瀹勬壆纭€ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1946,12 +2520,11 @@ watch(useLocalData, (newVal) => {
   cursor: not-allowed;
 }
 
-/* 閸ョ偓鐖ｉ弽宄扮础 */
+/* 闁搞儳鍋撻悥锝夊冀瀹勬壆纭€ */
 .icon {
   font-size: 1.2rem;
 }
 
-/* 閸濆秴绨插蹇氼啎鐠?*/
 @media (max-width: 1200px) {
   .grid-layout {
     grid-template-columns: 1fr;
@@ -2051,7 +2624,6 @@ watch(useLocalData, (newVal) => {
   }
 }
 
-/* 閺佺増宓侀弶銉︾爱閸掑洦宕插鈧崗?*/
 .data-source-switch {
   background: white;
   border-radius: 12px;
@@ -2060,7 +2632,6 @@ watch(useLocalData, (newVal) => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* 鏈湴鏁版嵁閫夋嫨閸栧搫鐓?*/
 .local-data-section {
   flex: 0 0 auto;
 }

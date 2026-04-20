@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api.js';
 
@@ -20,6 +20,25 @@ const total = ref(0);
 const searchKeyword = ref('');
 const filterStatus = ref('');
 const filterSize = ref('10');
+const importFileInput = ref(null);
+const importing = ref(false);
+const pageInput = ref('');
+
+const totalPages = computed(() => {
+  const pages = Math.ceil(total.value / pageSize.value);
+  return pages > 0 ? pages : 1;
+});
+
+const visiblePages = computed(() => {
+  const pages = [];
+  const start = Math.max(1, currentPage.value - 2);
+  const end = Math.min(totalPages.value, start + 4);
+  const adjustedStart = Math.max(1, end - 4);
+  for (let page = adjustedStart; page <= end; page++) {
+    pages.push(page);
+  }
+  return pages;
+});
 // 新增订单表单数据
 const newOrder = ref({
   waybillNo: '',
@@ -190,18 +209,67 @@ const handleSearch = () => {
 
 // 处理分页变化
 const handlePageChange = (page) => {
-  if (page >= 1) {
+  if (page >= 1 && page <= totalPages.value) {
     currentPage.value = page;
     fetchOrders();
   }
 };
 
-// 监听分页大小变化
-watch(filterSize, (newSize) => {
-  pageSize.value = parseInt(newSize);
+const handlePageSizeChange = () => {
+  pageSize.value = parseInt(filterSize.value, 10);
   currentPage.value = 1;
   fetchOrders();
-});
+};
+
+const handleJumpToPage = () => {
+  const targetPage = parseInt(pageInput.value, 10);
+  if (!Number.isNaN(targetPage)) {
+    handlePageChange(targetPage);
+  }
+  pageInput.value = '';
+};
+
+const triggerImportExcel = () => {
+  importFileInput.value?.click();
+};
+
+const handleImportExcel = async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  importing.value = true;
+  try {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await axios.post(`${API_BASE_URL}/logistics/import`, formData, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    if (response.data && response.data.code === 0) {
+      const data = response.data.data || {};
+      alert(`导入完成：新增 ${data.insertedCount || 0} 条，更新 ${data.updatedCount || 0} 条，跳过 ${data.skippedCount || 0} 条`);
+      currentPage.value = 1;
+      await fetchOrders();
+    } else {
+      alert(response.data?.message || 'Excel 导入失败');
+    }
+  } catch (err) {
+    alert(err.response?.data?.message || err.message || 'Excel 导入失败');
+  } finally {
+    importing.value = false;
+    event.target.value = '';
+  }
+};
+
+// 监听分页大小变化
+watch(filterSize, handlePageSizeChange);
 
 // 监听筛选状态变化
 watch(filterStatus, () => {
@@ -220,9 +288,21 @@ onMounted(() => {
   <div class="logistics-container">
     <div class="header">
       <h1>智慧物流管理系统</h1>
-      <button @click="handleAdd" class="btn btn-primary btn-lg">
-        <span class="icon">+</span> 新增订单
-      </button>
+      <div class="header-actions">
+        <input
+          ref="importFileInput"
+          type="file"
+          accept=".xls,.xlsx"
+          style="display: none"
+          @change="handleImportExcel"
+        >
+        <button @click="triggerImportExcel" class="btn btn-secondary btn-lg" :disabled="importing">
+          <span class="icon">↑</span> {{ importing ? '导入中...' : '导入Excel' }}
+        </button>
+        <button @click="handleAdd" class="btn btn-primary btn-lg">
+          <span class="icon">+</span> 新增订单
+        </button>
+      </div>
     </div>
 
     <!-- 搜索和筛选 -->
@@ -246,9 +326,10 @@ onMounted(() => {
           <option value="delivered">已送达</option>
         </select>
         <select v-model="filterSize" class="filter-select">
-          <option value="10">10条/页</option>
-          <option value="20">20条/页</option>
-          <option value="50">50条/页</option>
+          <option value="10">每页 10 条</option>
+          <option value="20">每页 20 条</option>
+          <option value="50">每页 50 条</option>
+          <option value="100">每页 100 条</option>
         </select>
       </div>
     </div>
@@ -320,14 +401,40 @@ onMounted(() => {
       >
         上一页
       </button>
-      <span class="page-info">第 {{ currentPage }} 页</span>
+      <button
+        v-for="page in visiblePages"
+        :key="page"
+        @click="handlePageChange(page)"
+        :class="['btn', 'btn-page', { active: page === currentPage }]"
+      >
+        {{ page }}
+      </button>
+      <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
       <button 
         @click="handlePageChange(currentPage + 1)" 
-        :disabled="currentPage * pageSize >= total"
+        :disabled="currentPage >= totalPages"
         class="btn btn-page"
       >
         下一页
       </button>
+      <div class="pagination-tools">
+        <select v-model="filterSize" class="filter-select pagination-select">
+          <option value="10">每页 10 条</option>
+          <option value="20">每页 20 条</option>
+          <option value="50">每页 50 条</option>
+          <option value="100">每页 100 条</option>
+        </select>
+        <input
+          v-model="pageInput"
+          type="number"
+          min="1"
+          :max="totalPages"
+          class="page-jump-input"
+          placeholder="页码"
+          @keyup.enter="handleJumpToPage"
+        >
+        <button @click="handleJumpToPage" class="btn btn-page">跳转</button>
+      </div>
       <span class="total-info">共 {{ total }} 条记录</span>
     </div>
 
@@ -512,6 +619,12 @@ onMounted(() => {
   color: #2c3e50;
   font-size: 24px;
   font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .btn-lg {
@@ -923,16 +1036,50 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(74, 108, 247, 0.2);
 }
 
+.btn-page.active {
+  background: #4a6cf7;
+  border-color: #4a6cf7;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(74, 108, 247, 0.25);
+}
+
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   margin-top: 24px;
   padding: 24px 32px;
   background: white;
   border-radius: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.pagination-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-select {
+  min-width: 120px;
+}
+
+.page-jump-input {
+  width: 88px;
+  padding: 10px 12px;
+  border: 2px solid #f0f2f5;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #495057;
+  background: white;
+}
+
+.page-jump-input:focus {
+  outline: none;
+  border-color: #4a6cf7;
+  box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.12);
 }
 
 .page-info {

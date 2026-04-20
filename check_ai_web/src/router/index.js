@@ -7,6 +7,7 @@ import LogisticsManagement from '../components/LogisticsManagement.vue';
 import DataMonitor from '../components/DataMonitor.vue';
 import FileUpload from '../components/FileUpload.vue';
 import AiAssistant from '../components/AiAssistant.vue';
+import ReviewWorkbench from '../components/ReviewWorkbench.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -55,14 +56,6 @@ const router = createRouter({
           }
         },
         {
-          path: 'monitor',
-          name: 'monitor',
-          component: DataMonitor,
-          meta: {
-            title: '数据监控 - 智慧物流系统'
-          }
-        },
-        {
           path: 'main',
           name: 'main',
           component: FileUpload,
@@ -71,11 +64,27 @@ const router = createRouter({
           }
         },
         {
+          path: 'reviews',
+          name: 'reviews',
+          component: ReviewWorkbench,
+          meta: {
+            title: '复核工作台 - 智慧物流系统'
+          }
+        },
+        {
+          path: 'monitor',
+          name: 'monitor',
+          component: DataMonitor,
+          meta: {
+            title: '数据监控 - 智慧物流系统'
+          }
+        },
+        {
           path: 'ai-assistant',
           name: 'ai-assistant',
           component: AiAssistant,
           meta: {
-            title: 'AI智能问答 - 智慧物流系统'
+            title: 'AI 助手 - 智慧物流系统'
           }
         }
       ]
@@ -85,7 +94,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   document.title = to.meta.title || '智慧物流系统';
-  
+
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('token');
     if (token) {

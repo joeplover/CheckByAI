@@ -27,7 +27,7 @@ public class MD5Util {
             }
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("MD5 algorithm not found", e);
+            throw new RuntimeException("未找到 MD5 算法", e);
         }
     }
 

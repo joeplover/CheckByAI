@@ -73,7 +73,7 @@ public class MysqlMonitorService {
                     statusMetrics,
                     5, TimeUnit.MINUTES
             );
-            log.info("收集MySQL状态指标成功");
+            log.debug("收集MySQL状态指标成功");
 
 
 
@@ -103,7 +103,7 @@ public class MysqlMonitorService {
                 LIMIT 20
                 """;
             List<Map<String, Object>> hotspotSQLs = jdbcTemplate.queryForList(sql);
-            log.info("hotspotSQLs:"+hotspotSQLs);
+            log.debug("收集MySQL热点SQL明细，共{}条", hotspotSQLs.size());
 
             //存储到Redis有序集合(按执行次数排序)
             for (Map<String, Object> sqlStat : hotspotSQLs) {
@@ -125,7 +125,7 @@ public class MysqlMonitorService {
 
             }
             redisTemplate.opsForZSet().removeRange(HOTSPOT_SQL_KEY,0,-101);
-            log.info("收集MySQL热点SQL成功,共收集{}条",hotspotSQLs.size());
+            log.debug("收集MySQL热点SQL成功,共收集{}条",hotspotSQLs.size());
 
         }catch (Exception e){
             log.error("收集MySQL热点SQL失败", e);

@@ -5,6 +5,7 @@ com\checkai\entity\User.class
 com\checkai\mapper\CallbackDataMapper.class
 com\checkai\service\IdempotencyService.class
 com\checkai\dto\LoginResponse.class
+com\checkai\dto\LocalDataRequest.class
 com\checkai\service\ExcelService.class
 com\checkai\scheduler\TaskTimeoutScheduler.class
 com\checkai\util\MD5Util.class

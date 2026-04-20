@@ -27,7 +27,7 @@ public class ExcelService {
             Row headerRow = sheet.getRow(0);
 
             if (headerRow == null) {
-                throw new Exception("Excel sheet has no header");
+            throw new Exception("Excel 表格缺少表头");
             }
 
             List<String> headers = new ArrayList<>();

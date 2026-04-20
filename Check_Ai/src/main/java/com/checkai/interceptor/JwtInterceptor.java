@@ -39,24 +39,23 @@ public class JwtInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         // 处理OPTIONS请求，直接放行
         if (request.getMethod().equals("OPTIONS")) {
-            logger.info("OPTIONS请求，跳过JWT验证");
+            logger.debug("OPTIONS请求，跳过JWT验证");
             return true;
         }
         
         // 获取请求URL
         String requestURI = request.getRequestURI();
-        logger.info("请求URL: {}", requestURI);
+        logger.debug("请求URL: {}", requestURI);
         
         // 白名单：登录、注册、回调和错误接口不需要JWT验证
         if (requestURI.equals("/auth/login") || requestURI.equals("/auth/register") || 
             requestURI.equals("/api/callback") || requestURI.equals("/error")) {
-            logger.info("白名单URL，跳过JWT验证");
+            logger.debug("白名单URL，跳过JWT验证");
             return true;
         }
         
         // 获取请求头中的Authorization字段
         String authorizationHeader = request.getHeader("Authorization");
-        logger.info("Authorization: {}", authorizationHeader);
 
         // 检查Authorization头是否存在且格式正确
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
@@ -69,13 +68,12 @@ public class JwtInterceptor implements HandlerInterceptor {
 
         // 提取JWT token
         String token = authorizationHeader.substring(7);
-        logger.info("提取的token: {}", token);
 
         try {
             // 从token中提取用户ID和用户名
             String userId = jwtUtil.getUserIdFromToken(token);
             String username = jwtUtil.getUsernameFromToken(token);
-            logger.info("从token中提取的用户信息 - ID: {}, 用户名: {}", userId, username);
+            logger.debug("从token中提取的用户信息 - ID: {}, 用户名: {}", userId, username);
 
             // 验证token
             boolean isValid = jwtUtil.validateToken(token, userId, username);
@@ -108,7 +106,7 @@ public class JwtInterceptor implements HandlerInterceptor {
 
             // 将用户信息存储到ThreadLocal中
             CurrentUserHolder.set(user);
-            logger.info("用户信息已存储到ThreadLocal: {}", username);
+            logger.debug("用户信息已存储到ThreadLocal: {}", username);
 
             return true;
         } catch (Exception e) {
@@ -132,6 +130,6 @@ public class JwtInterceptor implements HandlerInterceptor {
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
         // 清除ThreadLocal中的用户信息，防止内存泄漏
         CurrentUserHolder.clear();
-        logger.info("ThreadLocal中的用户信息已清除");
+        logger.debug("ThreadLocal中的用户信息已清除");
     }
 }
