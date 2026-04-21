@@ -44,6 +44,7 @@ com\checkai\util\CurrentUserHolder.class
 com\checkai\cache\CompositeCacheManager.class
 com\checkai\config\CacheConfig.class
 com\checkai\util\JwtUtil.class
+com\checkai\config\OpenApiConfig.class
 com\checkai\util\ShortIdUtil.class
 com\checkai\config\CorsConfig.class
 com\checkai\config\PasswordConfig.class

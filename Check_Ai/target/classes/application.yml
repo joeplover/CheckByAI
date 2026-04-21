@@ -77,6 +77,16 @@ jwt:
 swagger:
   enabled: true
 
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 checkai:
   workflow:
     api-url: ${CHECKAI_WORKFLOW_API_URL:https://api.coze.cn/v1/workflows/chat}
